@@ -1,18 +1,31 @@
 # L2 Packet Sniffer
 
-A Layer 2 packet sniffer written in Go, built incrementally to understand Ethernet frames, Linux packet capture, and low-level network programming.
+A small, educational Layer 2 packet sniffer written in Go. The project develops from a byte-level Ethernet parser into a Linux packet-capture tool, making each networking and systems-programming step explicit.
 
-The project is being developed from first principles rather than starting with a complete packet-sniffer implementation.
+The finished sniffer will capture frames from a selected Linux network interface, decode their headers, identify common encapsulated protocols, and print useful packet metadata.
 
 ## Current Status
 
-**Milestone 1 — Ethernet Frame Representation & Parsing** ✅
+**Milestone 1 - Ethernet frame representation and parsing** complete
 
-The current implementation uses a manually constructed byte slice to represent an Ethernet frame. It parses the Ethernet header into structured Go data and validates the minimum header length.
+The current implementation uses a manually constructed byte slice as test input. It validates the minimum Ethernet header length, parses the destination and source MAC addresses, reads the EtherType in big-endian order, and exposes the remaining bytes as the payload.
 
-Real packet capture is **not implemented yet**. That will be introduced with Linux `AF_PACKET` in a later milestone.
+Live packet capture is not implemented yet. It will be added through Linux `AF_PACKET` in a later milestone.
 
-## What Milestone 1 Covers
+Detailed milestone progress is tracked separately in [`Progress.md`](Progress.md).
+
+## Learning Path
+
+The project is intentionally incremental:
+
+1. Parse Ethernet II frames from raw bytes.
+2. Learn the Linux primitives required for raw packet capture.
+3. Open and bind an `AF_PACKET` raw socket.
+4. Capture frames and pass them through the parser.
+5. Decode ARP, IPv4, IPv6, TCP, UDP, and ICMP headers.
+6. Measure and improve capture-loop performance.
+
+## Milestone 1 Covers
 
 - Raw packet data represented as `[]byte`
 - Byte indexing and slicing
@@ -98,66 +111,12 @@ go run main.go
 
 - Go 1.26.5+
 
-## Roadmap
-
-### Milestone 1 — Ethernet Frame Parsing ✅
-
-- [x] Represent a frame as `[]byte`
-- [x] Understand byte indexes and slices
-- [x] Parse MAC addresses
-- [x] Parse EtherType using Big Endian
-- [x] Represent parsed data with a Go struct
-- [x] Validate the minimum Ethernet header length
-- [x] Format MAC addresses for display
-
-### Milestone 2 — Linux Fundamentals
-
-- [ ] Understand user space and kernel space
-- [ ] Understand system calls
-- [ ] Understand file descriptors
-- [ ] Understand Linux sockets
-
-### Milestone 3 — AF_PACKET
-
-- [ ] Create an `AF_PACKET` socket
-- [ ] Use `SOCK_RAW`
-- [ ] Use `ETH_P_ALL`
-- [ ] Understand `sockaddr_ll`
-- [ ] Bind the socket to a network interface
-
-### Milestone 4 — Real Packet Capture
-
-- [ ] Receive real Ethernet frames from a Linux interface
-- [ ] Build the capture loop
-- [ ] Pass captured frames to the Ethernet parser
-- [ ] Handle graceful shutdown
-
-### Milestone 5 — Protocol Decoding
-
-- [ ] Detect Ethernet frame types
-- [ ] Parse ARP
-- [ ] Parse IPv4
-- [ ] Parse IPv6
-- [ ] Parse TCP
-- [ ] Parse UDP
-- [ ] Parse ICMP
-
-### Milestone 6 — Performance & Engineering
-
-- [ ] Reduce unnecessary allocations
-- [ ] Understand Go memory behavior and escape analysis
-- [ ] Track packet drops and receive-buffer usage
-- [ ] Profile the capture loop
-- [ ] Explore `PACKET_MMAP`
-
-## Project Goal
-
-Build a low-level Layer 2 packet sniffer in Go that can capture Ethernet frames from a Linux network interface, decode their headers, identify encapsulated protocols, and present useful packet information.
-
-The project is also a practical exercise in:
+This project is also a practical exercise in:
 
 - Go systems programming
 - Linux networking
 - Ethernet and network protocols
 - Raw packet capture
 - Memory and performance engineering
+
+

@@ -28,9 +28,21 @@ func parseEthernet(frame []byte) (EthernetFrame, error) {
 	return ethernet, nil
 }
 
+func formatMAC(mac [6]byte) string {
+	return fmt.Sprintf(
+		"%02x:%02x:%02x:%02x:%02x:%02x",
+		mac[0],
+		mac[1], 
+		mac[2],
+		mac[3],
+		mac[4],
+		mac[5],
+	)
+} 
+
 func main() {
 	frame := []byte{
-		0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,
+		0x00, 0x01, 0x02, 0x0a, 0x10, 0xff,
 		0x11, 0x22, 0x33, 0x44, 0x55, 0x66,
 		0x08, 0x00,
 		// Fake payload
@@ -43,8 +55,8 @@ func main() {
 		return
 	}
 
-	fmt.Printf("Destination: %x\n", ethernet.Destination)
-	fmt.Printf("Source: %x\n", ethernet.Source)
+	fmt.Printf("Destination: %s\n", formatMAC(ethernet.Destination))
+	fmt.Printf("Source: %s\n", formatMAC(ethernet.Source))
 	fmt.Printf("EtherType: 0x%04x\n", ethernet.EtherType)
 	fmt.Printf("Payload: %x\n", ethernet.Payload)
 
