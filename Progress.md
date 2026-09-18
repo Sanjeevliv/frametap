@@ -1,19 +1,19 @@
 ### Milestone 1 — Ethernet Frame Parsing ✅
 
-- [x] Represent a frame as `[]byte`
-- [x] Understand byte indexes and slices
-- [x] Parse MAC addresses
-- [x] Parse EtherType using Big Endian
-- [x] Represent parsed data with a Go struct
-- [x] Validate the minimum Ethernet header length
-- [x] Format MAC addresses for display
+- [X] Represent a frame as `[]byte`
+- [X] Understand byte indexes and slices
+- [X] Parse MAC addresses
+- [X] Parse EtherType using Big Endian
+- [X] Represent parsed data with a Go struct
+- [X] Validate the minimum Ethernet header length
+- [X] Format MAC addresses for display
 
 ### Milestone 2 — Linux Fundamentals
 
-- [ ] Understand user space and kernel space
-- [ ] Understand system calls
-- [ ] Understand file descriptors
-- [ ] Understand Linux sockets
+- [X] Understand user space and kernel space
+- [X] Understand system calls
+- [X] Understand file descriptors
+- [X] Understand Linux sockets
 
 ### Milestone 3 — AF_PACKET
 
@@ -47,4 +47,3 @@
 - [ ] Track packet drops and receive-buffer usage
 - [ ] Profile the capture loop
 - [ ] Explore `PACKET_MMAP`
-
