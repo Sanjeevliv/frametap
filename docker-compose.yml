@@ -1,0 +1,13 @@
+services:
+  sniffer:
+    image: l2sniffer
+    build: .
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    network_mode: host
+    volumes:
+      - .:/app
+    working_dir: /app
+    stdin_open: true
+    tty: true

@@ -1,8 +1,4 @@
-# Layer 2 Packet Sniffer — Interview Notes
-
-A Layer 2 packet sniffer in **Go** using Linux **AF_PACKET**.
-
-## Architecture
+# Architecture
 
 ```text
 NIC
@@ -20,7 +16,7 @@ Ethernet parser
 
 ---
 
-# Milestone 1 — Packet & Ethernet Fundamentals
+## Milestone 1 — Packet & Ethernet Fundamentals
 
 ## Bytes in Go
 
@@ -93,7 +89,7 @@ if len(frame) < 14 {
 
 ---
 
-# Milestone 2 — Linux Fundamentals
+## Milestone 2 — Linux Fundamentals
 
 ## Userspace vs Kernel Space
 
@@ -123,7 +119,7 @@ A normal function call usually stays in the process; a syscall crosses into the 
 
 ---
 
-# File Descriptors
+## File Descriptors
 
 A **file descriptor (FD)** is a small integer used by a process to refer to a kernel-managed resource.
 
@@ -154,7 +150,7 @@ socket() → fd → use resource → close(fd)
 
 ---
 
-# Sockets
+## Sockets
 
 A socket is a **kernel-managed communication endpoint**.
 
@@ -186,7 +182,7 @@ golang.org/x/sys/unix
 
 ---
 
-# AF_PACKET
+## AF_PACKET
 
 `AF_PACKET` is a Linux address family for **link-layer packet access**.
 
@@ -203,7 +199,7 @@ It lets userspace access packets at the Ethernet/link layer rather than starting
 
 ---
 
-# SOCK_RAW
+## SOCK_RAW
 
 `SOCK_RAW` requests **raw packet access**.
 
@@ -218,7 +214,7 @@ It does **not** mean bypassing the kernel; packets are still received and proces
 
 ---
 
-# ETH_P_ALL
+## ETH_P_ALL
 
 `ETH_P_ALL` tells the packet socket to accept packets for **all Ethernet protocols**, instead of restricting reception to one EtherType.
 
@@ -237,7 +233,7 @@ Our parser       → what we do with the packet
 
 ---
 
-# socket() → bind() → recvfrom()
+## socket() → bind() → recvfrom()
 
 This distinction is one of the most important interview points.
 
@@ -269,7 +265,7 @@ recvfrom()→ receive packet bytes
 
 ---
 
-# Network Interface: name → index
+## Network Interface: name → index
 
 The interface may be known by name:
 
@@ -295,7 +291,7 @@ The index is an identifier for the network interface; it is not the same concept
 
 ---
 
-# SockaddrLinklayer
+## SockaddrLinklayer
 
 AF_PACKET uses link-layer socket addressing.
 
@@ -333,7 +329,7 @@ socket associated with eth0
 
 ---
 
-# recvfrom() and Buffers
+## recvfrom() and Buffers
 
 Allocate userspace storage:
 
@@ -371,7 +367,7 @@ buffer[:n] → actual packet
 
 ---
 
-# Packet Flow Mental Model
+## Packet Flow Mental Model
 
 ```text
 NIC
@@ -401,7 +397,7 @@ real NIC → kernel → AF_PACKET → recvfrom() → []byte
 
 ---
 
-# Privileges
+## Privileges
 
 Creating raw packet sockets requires appropriate Linux privileges/capabilities; commonly this means **`CAP_NET_RAW`**.
 
@@ -411,50 +407,63 @@ The development machine is macOS, so Linux-specific `AF_PACKET` testing is done 
 
 ---
 
-# Interview Quick-Fire
+## Interview Quick-Fire
 
 ### What is a file descriptor?
+
 A small integer handle a process uses to refer to a kernel-managed resource.
 
 ### Is an FD the socket?
+
 No. It is the process's handle/reference to the kernel-managed socket.
 
 ### What does `socket()` do?
+
 Requests the kernel to create a socket of a specified family, type, and protocol, then returns an FD.
 
 ### What does `AF_PACKET` mean?
+
 Linux link-layer packet socket address family; useful for Ethernet-level access.
 
 ### What does `SOCK_RAW` mean here?
+
 Request raw packet access, including the link-layer header for an AF_PACKET raw socket.
 
 ### What does `ETH_P_ALL` mean?
+
 Accept packets for all Ethernet protocols rather than one specific EtherType.
 
 ### Why `bind()`?
+
 To associate the packet socket with interface/address information, such as a specific interface.
 
 ### Why an interface index instead of `"eth0"`?
+
 The low-level packet address structure identifies the interface using Linux's numeric interface index.
 
 ### What does `recvfrom()` do?
+
 Receives data from the socket and places it into a userspace buffer.
 
 ### Why do we need `n` from `recvfrom()`?
+
 Because the buffer is larger than most packets; `n` tells us how many bytes were actually received.
 
 ### Does `recvfrom()` read directly from the NIC?
+
 No. The NIC delivers traffic to the Linux kernel; `recvfrom()` retrieves data made available through the socket.
 
 ### Why can `recvfrom()` block?
+
 A blocking socket waits when no data is currently available.
 
 ### Why do raw packet sockets need privileges?
+
 Because raw packet access is a privileged networking operation; Linux commonly requires `CAP_NET_RAW`.
 
 ---
 
-# Current Progress
+## Current Progress
 
 ```text
 Milestone 1 ✅  Go/binary/Ethernet parsing
