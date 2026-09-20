@@ -45,7 +45,8 @@ func formatMAC(mac [6]byte) string {
 	)
 }
 
-func htons(v uint16) uint16 {
+// Converts 16 bit short integer from host byte order to network byte order
+func htons(v uint16) uint16 { //host to network short
 	return (v << 8) | (v >> 8)
 }
 
@@ -120,8 +121,6 @@ func main() {
 		fmt.Printf("Source: %s\n", formatMAC(frame.Source))
 		fmt.Printf("EtherType: 0x%04x\n", frame.EtherType)
 		fmt.Printf("Payload: %x\n", frame.Payload)
-
-		fmt.Printf("raw bytes: %x\n", packet)
 
 	}
 }
