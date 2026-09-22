@@ -32,9 +32,9 @@ human-readable output
 M1  ✅  Go + Packet/Binary Fundamentals + Ethernet Parser
 M2  ✅  Linux Fundamentals
 M3  ✅  AF_PACKET Deep Dive
-M4  ⏳  First Real Packet Capture  <-- CURRENT POSITION
-M5  ⬜  Connect Capture to Ethernet Parser
-M6  ⬜  Protocol Decoding: ARP / IPv4 / IPv6
+M4  ✅  First Real Packet Capture
+M5  ✅  Connect Capture to Ethernet Parser
+M6  ⏳  Protocol Decoding: ARP / IPv4 / IPv6  <-- CURRENT POSITION
 M7  ⬜  Protocol Decoding: TCP / UDP / ICMP
 M8  ⬜  Go Systems & Performance Engineering
 M9  ⬜  Linux Packet-Capture Internals
@@ -87,33 +87,33 @@ M10 ⬜  Advanced AF_PACKET (Zero-Copy & Scaling)
 - [x] Understanding why `buffer[:n]` must be sliced before processing
 - [x] Foundational awareness of `PACKET_FANOUT`, `PACKET_RX_RING`, `PACKET_MMAP`, `TPACKET`
 
+### Milestone 4 — First Real Packet Capture ✅
+
+**Goal**: `NIC → kernel → AF_PACKET → Go []byte`
+
+- [x] Open real `AF_PACKET` socket with `SOCK_RAW` and `ETH_P_ALL`
+- [x] Resolve network interface name to index (`net.InterfaceByName`)
+- [x] Bind socket to target interface with `unix.SockaddrLinklayer`
+- [x] Implement blocking capture loop using `unix.Recvfrom()`
+- [x] Inspect and slice buffer to actual received length `n` (`buffer[:n]`)
+- [x] Read and display `SockaddrLinklayer` metadata (`Ifindex`, `Pkttype`, `Protocol`)
+- [x] Test and verify capture using real network traffic (e.g. `ping`)
+
+### Milestone 5 — Connect Capture to Ethernet Parser ✅
+
+**Goal**: `Real packet []byte → EthernetFrame`
+
+- [x] Connect `buffer[:n]` from capture loop into `parseEthernet()`
+- [x] Validate minimum Ethernet frame length
+- [x] Extract and display Destination MAC, Source MAC, and EtherType
+- [x] Gracefully handle malformed or truncated packets
+- [x] Provide clean, human-readable terminal packet summaries
+
 ---
 
 ## Next Milestones
 
-### Milestone 4 — First Real Packet Capture ⏳ (Current)
-
-**Goal**: `NIC → kernel → AF_PACKET → Go []byte`
-
-- [ ] Open real `AF_PACKET` socket with `SOCK_RAW` and `ETH_P_ALL`
-- [ ] Resolve network interface name to index (`net.InterfaceByName`)
-- [ ] Bind socket to target interface with `unix.SockaddrLinklayer`
-- [ ] Implement blocking capture loop using `unix.Recvfrom()`
-- [ ] Inspect and slice buffer to actual received length `n` (`buffer[:n]`)
-- [ ] Read and display `SockaddrLinklayer` metadata (`Ifindex`, `Pkttype`, `Protocol`)
-- [ ] Test and verify capture using real network traffic (e.g. `ping`)
-
-### Milestone 5 — Connect Capture to Ethernet Parser ⬜
-
-**Goal**: `Real packet []byte → EthernetFrame`
-
-- [ ] Connect `buffer[:n]` from capture loop into `parseEthernet()`
-- [ ] Validate minimum Ethernet frame length
-- [ ] Extract and display Destination MAC, Source MAC, and EtherType
-- [ ] Gracefully handle malformed or truncated packets
-- [ ] Provide clean, human-readable terminal packet summaries
-
-### Milestone 6 — Protocol Decoding: ARP / IPv4 / IPv6 ⬜
+### Milestone 6 — Protocol Decoding: ARP / IPv4 / IPv6 ⏳ (Current)
 
 **Goal**: `Ethernet Payload → Network Layer Packets`
 

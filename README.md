@@ -231,6 +231,21 @@ Kernel filtering → which packets reach socket
 Our parser       → what we do with the packet
 ```
 
+### Network Byte Order & `htons()`
+
+In code, we pass `htons(unix.ETH_P_ALL)` instead of raw `unix.ETH_P_ALL`:
+
+```go
+func htons(v uint16) uint16 {
+    return (v << 8) | (v >> 8)
+}
+```
+
+**Why is `htons()` required?**
+- `unix.ETH_P_ALL` is defined in host byte order (`0x0003` on little-endian x86/ARM).
+- The Linux kernel socket layer expects the protocol parameter in **network byte order (Big-Endian)** (`0x0300`).
+- Passing `0x0003` directly without `htons()` causes the kernel to match `ETH_P_AX25` instead of `ETH_P_ALL`, silently failing to capture all packets.
+
 ---
 
 ## socket() → bind() → recvfrom()
@@ -267,27 +282,29 @@ recvfrom()→ receive packet bytes
 
 ## Network Interface: name → index
 
-The interface may be known by name:
+The interface may be known by name (e.g. `"eth0"` or passed via `os.Args[1]`).
 
-```text
-"eth0"
-```
+Linux packet-socket addressing uses a numeric **interface index**.
 
-Linux packet-socket addressing uses an **interface index**.
-
-Go:
+In Go, resolve the interface using the standard library `net` package:
 
 ```go
-index, err := unix.If_nametoindex("eth0")
+ifaceInfo, err := net.InterfaceByName("eth0")
+if err != nil {
+    log.Fatalf("InterfaceByName: %v", err)
+}
+ifindex := ifaceInfo.Index
 ```
+
+*(Note: At the direct syscall level, `unix.If_nametoindex("eth0")` can also be used.)*
 
 Conceptually:
 
 ```text
-"eth0" → If_nametoindex() → interface index
+"eth0" → InterfaceByName() / If_nametoindex() → interface index
 ```
 
-The index is an identifier for the network interface; it is not the same concept as a file descriptor.
+The index is a kernel identifier for the network interface; it is not the same concept as a file descriptor.
 
 ---
 
@@ -299,16 +316,16 @@ In Go:
 
 ```go
 addr := &unix.SockaddrLinklayer{
-    Protocol: unix.ETH_P_ALL,
-    Ifindex:  int32(index),
+    Protocol: htons(unix.ETH_P_ALL),
+    Ifindex:  ifindex,
 }
 ```
 
 Key fields:
 
 ```text
-Protocol → Ethernet protocol selection
-Ifindex  → target network interface
+Protocol → Ethernet protocol selection (in network byte order via htons)
+Ifindex  → target network interface index
 ```
 
 Then:
@@ -324,7 +341,7 @@ fd + interface information
           ↓
        bind()
           ↓
-socket associated with eth0
+socket associated with eth0 (restricting capture to this interface)
 ```
 
 ---
@@ -468,12 +485,12 @@ Because raw packet access is a privileged networking operation; Linux commonly r
 ```text
 Milestone 1 ✅  Go/binary/Ethernet parsing
 Milestone 2 ✅  Linux/syscalls/FDs/sockets/bind/recvfrom
-Milestone 3 →   AF_PACKET deep dive
-Milestone 4     First real packet capture
-Milestone 5     Connect capture to Ethernet parser
-Milestone 6     ARP / IPv4 / IPv6
-Milestone 7     TCP / UDP / ICMP
-Milestone 8     Go performance
+Milestone 3 ✅  AF_PACKET deep dive
+Milestone 4 ✅  First real packet capture (live capture loop + metadata)
+Milestone 5 ✅  Connect capture to Ethernet parser (end-to-end L2 sniffer)
+Milestone 6 →   Protocol Decoding: ARP / IPv4 / IPv6
+Milestone 7     Protocol Decoding: TCP / UDP / ICMP
+Milestone 8     Go performance & systems engineering
 Milestone 9     Linux capture internals
 Milestone 10    PACKET_RX_RING / PACKET_MMAP / TPACKET
 ```
