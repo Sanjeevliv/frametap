@@ -1,3 +1,9 @@
+//go:build linux
+
+/* Note: AF_PACKET is a Linux-specific socket address family and will not compile
+   or run natively on macOS/Windows. This program requires root or CAP_NET_RAW
+   privilege (e.g., run via sudo or inside a privileged Docker container). */
+
 package main
 
 import (
@@ -17,6 +23,12 @@ type EthernetFrame struct {
 	EtherType   uint16
 	Payload     []byte
 }
+
+/* Ethernet II frame header is exactly 14 bytes:
+   - 0..5   (6 bytes): Destination MAC
+   - 6..11  (6 bytes): Source MAC
+   - 12..13 (2 bytes): EtherType (Big-Endian network byte order, e.g., 0x0800 for IPv4, 0x0806 for ARP)
+   - 14..n  (variable): Payload (minimum Ethernet frame size is 64 bytes with FCS, 60 bytes without) */
 
 func parseEthernet(frame []byte) (EthernetFrame, error) {
 	if len(frame) < 14 {
@@ -64,6 +76,12 @@ func main() {
 	}
 	ifindex := ifaceInfo.Index
 
+	/* Why htons() is required here:
+	   unix.ETH_P_ALL is defined in host byte order (0x0003 on little-endian x86/ARM).
+	   However, the Linux kernel socket layer expects the protocol parameter in
+	   network byte order (Big-Endian: 0x0300). Passing 0x0003 directly without htons()
+	   would mistakenly match ETH_P_AX25 instead of ETH_P_ALL. */
+
 	// Creating a AF_PACKET socket
 	fd, err := unix.Socket(
 		unix.AF_PACKET,
@@ -74,6 +92,10 @@ func main() {
 		log.Fatalf("Socket: %v", err)
 	}
 	defer unix.Close(fd)
+
+	/* Calling unix.Socket with ETH_P_ALL immediately registers the socket to receive
+	   packets across ALL system network interfaces.
+	   Calling unix.Bind with addr.Ifindex restricts the capture stream to the specific interface. */
 
 	// Bind the packet socket to the interface
 	addr := &unix.SockaddrLinklayer{
@@ -100,6 +122,13 @@ func main() {
 
 		fmt.Printf("\nPacket received: %d bytes", n)
 
+		/* sll.Pkttype indicates the packet's direction and destination classification:
+		   0 = PACKET_HOST      (addressed to our local MAC)
+		   1 = PACKET_BROADCAST (link-layer broadcast)
+		   2 = PACKET_MULTICAST (link-layer multicast)
+		   3 = PACKET_OTHERHOST (addressed to someone else, only seen in promiscuous mode)
+		   4 = PACKET_OUTGOING  (transmitted by our local machine) */
+
 		// Inspect AF_PACKET metadata.
 		if sll, ok := from.(*unix.SockaddrLinklayer); ok {
 			fmt.Printf(
@@ -109,6 +138,14 @@ func main() {
 				sll.Protocol,
 			)
 		}
+
+		/* Why buffer[:n]:
+		   'buffer' is pre-allocated to 65535 bytes (max IPv4 packet size). 'n' is the actual
+		   bytes written by the kernel. Slicing buffer[:n] prevents parsing garbage/stale
+		   data from previous packets.
+		   Memory caveat: frame.Payload points directly into 'buffer'. Because 'buffer' is
+		   reused on the next loop iteration, any async processing or storage requires
+		   making an explicit copy of the payload (e.g. append([]byte(nil), frame.Payload...)).*/
 
 		packet := buffer[:n]
 		frame, err := parseEthernet(packet)
