@@ -62,6 +62,17 @@ func htons(v uint16) uint16 { //host to network short
 	return (v << 8) | (v >> 8)
 }
 
+const payloadPreviewLen = 32
+
+func formatPayload(p []byte) string {
+	preview := p[:min(len(p), payloadPreviewLen)]
+	ellipsis := ""
+	if len(p) > payloadPreviewLen {
+		ellipsis = "..."
+	}
+	return fmt.Sprintf("%d bytes [%x%s]", len(p), preview, ellipsis)
+}
+
 func main() {
 
 	if len(os.Args) != 2 {
@@ -157,7 +168,7 @@ func main() {
 		fmt.Printf("Destination: %s\n", formatMAC(frame.Destination))
 		fmt.Printf("Source: %s\n", formatMAC(frame.Source))
 		fmt.Printf("EtherType: 0x%04x\n", frame.EtherType)
-		fmt.Printf("Payload: %x\n", frame.Payload)
+		fmt.Printf("Payload: %s\n", formatPayload(frame.Payload))
 
 	}
 }
