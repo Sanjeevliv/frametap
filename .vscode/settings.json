@@ -1,7 +1,4 @@
 {
-  "go.toolsEnvVars": {
-    "GOOS": "linux"
-  },
   "gopls": {
     "env": {
       "GOOS": "linux"
