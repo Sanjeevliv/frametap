@@ -1,31 +1,5 @@
 # Layer 2 Packet Sniffer — Progress & Roadmap
 
-> **Approach**: Incremental learning (`concept → tiny exercise → explain → apply → next`). Avoid dumping complete implementations prematurely.
-
----
-
-## Architecture Pipeline
-
-```text
-NIC
- ↓
-Linux kernel
- ↓
-AF_PACKET
- ↓
-Go []byte
- ↓
-Ethernet parser
- ↓
-ARP / IPv4 / IPv6
- ↓
-TCP / UDP / ICMP
- ↓
-human-readable output
-```
-
----
-
 ## Roadmap & Current Position
 
 ```text
@@ -33,7 +7,7 @@ M1  ✅  Go + Packet/Binary Fundamentals + Ethernet Parser
 M2  ✅  Linux Fundamentals
 M3  ✅  AF_PACKET Deep Dive
 M4  ✅  First Real Packet Capture
-M5  ✅  Connect Capture to Ethernet Parser
+M5  ✅  Robust Ethernet Parsing
 M6  ⏳  Protocol Decoding: ARP / IPv4 / IPv6  <-- CURRENT POSITION
 M7  ⬜  Protocol Decoding: TCP / UDP / ICMP
 M8  ⬜  Go Systems & Performance Engineering
@@ -47,67 +21,98 @@ M10 ⬜  Advanced AF_PACKET (Zero-Copy & Scaling)
 
 ### Milestone 1 — Go + Packet/Binary Fundamentals + Ethernet Parser ✅
 
-- [x] Bytes, binary, and hex representation
-- [x] Slices, sub-slicing, and byte indexing
-- [x] Big-endian network byte order decoding (`binary.BigEndian.Uint16`)
-- [x] Ethernet frame structure:
+- [X] Bytes, binary, and hex representation
+- [X] Slices, sub-slicing, and byte indexing
+- [X] Endianness and big-endian network byte order decoding (`binary.BigEndian.Uint16`)
+- [X] Ethernet frame structure:
   - `0–5`: Destination MAC
   - `6–11`: Source MAC
   - `12–13`: EtherType
   - `14+`: Payload
-- [x] `EthernetFrame` Go struct modeling
-- [x] Minimum Ethernet frame length validation (14 bytes)
-- [x] MAC address formatting (`%02x:%02x:...`)
-- [x] Validation using manually constructed synthetic frame bytes
+- [X] `EthernetFrame` Go struct modeling
+- [X] Minimum Ethernet frame length validation (14 bytes)
+- [X] MAC address formatting (`%02x:%02x:...`)
+- [X] Payload extraction
+- [X] Malformed / truncated frame validation
 
 ### Milestone 2 — Linux Fundamentals ✅
 
-- [x] Userspace vs kernel space separation
-- [x] System calls and file descriptor lifecycle
-- [x] Linux sockets and low-level socket API
-- [x] `socket()`, `bind()`, `recvfrom()` mechanics
-- [x] Network interfaces and interface indices (`ifindex`)
-- [x] Blocking vs non-blocking socket behavior
-- [x] Receive buffer management vs actual bytes returned (`n`)
-- [x] Linux capabilities and privileges (`CAP_NET_RAW`, `CAP_NET_ADMIN`)
-- [x] Validation inside containerized Linux environment (`docker compose`)
+- [X] Userspace vs kernel space separation
+- [X] System calls and file descriptor lifecycle
+- [X] Linux sockets and low-level socket API
+- [X] `socket()`, `bind()`, `recvfrom()` mechanics
+- [X] Network interfaces and interface indices (`ifindex`)
+- [X] Blocking vs non-blocking socket behavior
+- [X] Receive buffer management vs actual bytes returned (`n`)
+- [X] Linux capabilities and privileges (`CAP_NET_RAW`, `CAP_NET_ADMIN`)
+- [X] Validation inside containerized Linux environment (`docker compose`)
 
 ### Milestone 3 — AF_PACKET Deep Dive ✅
 
-- [x] Packet sockets vs standard IP sockets (Layer 2 link-layer access)
-- [x] `SOCK_RAW` (raw link-layer with Ethernet header) vs `SOCK_DGRAM` (cooked frame)
-- [x] Protocol filtering: `ETH_P_ALL` vs specific protocols (`ETH_P_IP`, `ETH_P_ARP`, `ETH_P_IPV6`)
-- [x] Interface binding using `Ifindex`
-- [x] Link-layer socket addressing via `sockaddr_ll` / `unix.SockaddrLinklayer`
-- [x] Packet direction and metadata via `Pkttype`:
+- [X] Packet sockets vs standard IP sockets (Layer 2 link-layer access)
+- [X] `SOCK_RAW` (raw link-layer with Ethernet header) vs `SOCK_DGRAM` (cooked frame)
+- [X] Ethernet protocol selection: `ETH_P_ALL` vs specific protocols
+- [X] Interface binding using `Ifindex`
+- [X] Link-layer socket addressing via `sockaddr_ll` / `unix.SockaddrLinklayer`
+- [X] Packet direction and destination metadata via `Pkttype`:
   - `PACKET_HOST`, `PACKET_BROADCAST`, `PACKET_MULTICAST`, `PACKET_OTHERHOST`, `PACKET_OUTGOING`
-- [x] Promiscuous mode concepts vs `ETH_P_ALL`
-- [x] High-level Linux packet receive path
-- [x] Capturing metadata and packet bytes with `unix.Recvfrom()`
-- [x] Understanding why `buffer[:n]` must be sliced before processing
-- [x] Foundational awareness of `PACKET_FANOUT`, `PACKET_RX_RING`, `PACKET_MMAP`, `TPACKET`
+- [X] Promiscuous mode concepts vs `ETH_P_ALL`
+- [X] High-level Linux packet receive path
+- [X] Capturing metadata and packet bytes with `unix.Recvfrom()`
+- [X] Buffer reuse mechanics
+- [X] Foundational awareness of:
+  - `PACKET_FANOUT`
+  - `PACKET_RX_RING`
+  - `PACKET_MMAP`
+  - `TPACKET`
 
 ### Milestone 4 — First Real Packet Capture ✅
 
 **Goal**: `NIC → kernel → AF_PACKET → Go []byte`
 
-- [x] Open real `AF_PACKET` socket with `SOCK_RAW` and `ETH_P_ALL`
-- [x] Resolve network interface name to index (`net.InterfaceByName`)
-- [x] Bind socket to target interface with `unix.SockaddrLinklayer`
-- [x] Implement blocking capture loop using `unix.Recvfrom()`
-- [x] Inspect and slice buffer to actual received length `n` (`buffer[:n]`)
-- [x] Read and display `SockaddrLinklayer` metadata (`Ifindex`, `Pkttype`, `Protocol`)
-- [x] Test and verify capture using real network traffic (e.g. `ping`)
+- [X] Open real `AF_PACKET` socket with `SOCK_RAW` and `ETH_P_ALL`
+- [X] Interface selection and binding (`net.InterfaceByName` → `ifindex`)
+- [X] Blocking capture loop using `unix.Recvfrom()`
+- [X] Reusable receive buffer (`make([]byte, 65535)`)
+- [X] Buffer slicing to actual received length `n` (`buffer[:n]`)
+- [X] AF_PACKET metadata inspection (`Ifindex`, `Pkttype`, `Protocol`)
+- [X] Real traffic testing inside container (e.g. `ping`)
+- [X] Sending captured frames into Ethernet parser
 
-### Milestone 5 — Connect Capture to Ethernet Parser ✅
+*(Note: Graceful shutdown is intentionally deferred to Milestone 8).*
 
-**Goal**: `Real packet []byte → EthernetFrame`
+### Milestone 5 — Robust Ethernet Parsing ✅
 
-- [x] Connect `buffer[:n]` from capture loop into `parseEthernet()`
-- [x] Validate minimum Ethernet frame length
-- [x] Extract and display Destination MAC, Source MAC, and EtherType
-- [x] Gracefully handle malformed or truncated packets
-- [x] Provide clean, human-readable terminal packet summaries
+**Goal**: `Real packet []byte → Safe, modular, tested, and human-readable EthernetFrame`
+
+- [X] 14-byte Ethernet header invariant
+- [X] Safe slice boundaries and length checks
+- [X] Truncated / malformed frame handling (`errors.New("frame too short")`)
+- [X] Destination and Source MAC address extraction
+- [X] EtherType extraction
+- [X] Payload extraction
+- [X] Unknown EtherType handling
+- [X] Capture / parser architectural separation (`main.go` Linux capture vs `ethernet.go` pure parser)
+- [X] Buffer reuse and payload slice lifetime awareness:*(Retaining parsed frames while reusing the buffer requires explicit copying).*
+- [X] Clean human-readable Ethernet output with bounded payload hex preview
+- [X] Parser unit-test strategy (`ethernet_test.go`):
+  - `TestParseEthernetTooShort` (frame length < 14 bytes)
+  - `TestParseEthernetEmptyPayload` (boundary edge case: frame length == 14 bytes)
+  - `TestParseEthernet` (valid 18-byte frame: MACs, EtherType, payload assertions)
+  - `TestEtherTypeName` (table-driven test for EtherType protocol mapping)
+  - `TestFormatMac` (MAC address string formatting)
+- [X] EtherType name resolution:
+  - `0x0800` → IPv4
+  - `0x0806` → ARP
+  - `0x86DD` → IPv6
+  - Unknown fallback
+
+> **Important distinction:**
+> `unknown EtherType ≠ malformed Ethernet frame`
+> *(An unknown EtherType is a structurally valid Ethernet frame whose inner payload protocol is unrecognized).*
+
+> **Important memory concept:**
+> `EthernetFrame.Payload` points directly into the reusable capture `buffer`. Slicing is zero-copy; retaining frames across iterations requires copying.
 
 ---
 

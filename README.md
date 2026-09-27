@@ -1,496 +1,304 @@
-# Architecture
+# Layer 2 Packet Sniffer (Go + Linux AF_PACKET)
+
+A lightweight, low-level Layer 2 Ethernet packet sniffer implemented in pure Go using Linux `AF_PACKET` raw sockets. Built with **zero third-party C dependencies** (no `libpcap` / Cgo).
+
+Designed to demonstrate systems programming in Go, Linux networking internals, raw socket mechanics, and zero-allocation binary parsing.
+
+---
+
+## Architecture Pipeline
 
 ```text
-NIC
- ↓
-Linux kernel
- ↓
-AF_PACKET socket
- ↓
-recvfrom()
- ↓
-Go []byte
- ↓
-Ethernet parser
+       Physical Wire / NIC
+                │
+                ▼
+       Linux Kernel RX Path (Driver / NAPI / sk_buff)
+                │
+                ▼
+       AF_PACKET Socket (SOCK_RAW, ETH_P_ALL)
+                │
+                ▼
+       unix.Recvfrom() (syscall into pre-allocated buffer)
+                │
+                ▼
+       Go []byte window (buffer[:n])
+                │
+                ▼
+       Ethernet Parser (14-byte header invariant)
+                │
+        ┌───────┴───────┐
+        ▼               ▼
+EtherType: IPv4/ARP/IPv6   Payload Slice (Zero-copy reference)
 ```
 
 ---
 
-## Milestone 1 — Packet & Ethernet Fundamentals
+## Project Structure & Separation of Concerns
 
-## Bytes in Go
-
-```go
-byte == uint8
-```
-
-A packet is naturally represented as:
-
-```go
-[]byte
-```
-
-- **Array**: fixed length, part of the type.
-- **Slice**: descriptor over an underlying array; has length and capacity.
-- `b[a:b]` creates a slice covering indexes `[a, b)`.
-
-## Ethernet Frame
+To allow native development and unit testing on any platform (macOS/Windows/Linux) while maintaining raw Linux socket functionality, the codebase is cleanly decoupled:
 
 ```text
-0–5     Destination MAC   6 bytes
-6–11    Source MAC        6 bytes
-12–13   EtherType         2 bytes
-14+     Payload            variable
+.
+├── main.go            # Linux-only (//go:build linux): AF_PACKET raw socket, bind, capture loop
+├── ethernet.go        # Pure Go (Cross-platform): Frame structures, parseEthernet, formatters
+├── ethernet_test.go   # Pure Go (Cross-platform): Unit tests (runs natively on macOS)
+├── Dockerfile         # Containerized Linux environment with CAP_NET_RAW for macOS users
+├── docker-compose.yml # Compose file configured with host network & raw capabilities
+├── Progress.md        # Detailed milestone progression tracking
+└── README.md          # Technical documentation & interview revision guide
 ```
 
-Minimum Ethernet header size: **14 bytes**.
+- **`main.go`** contains platform-dependent syscalls (`golang.org/x/sys/unix`).
+- **`ethernet.go`** contains pure parsing and formatting logic. It compiles everywhere and has 100% test coverage.
 
-Example parser model:
+---
+
+## Core Systems & Networking Concepts
+
+### 1. Linux Raw Socket Mechanics (`AF_PACKET`)
+
+#### Address Family: `AF_PACKET`
+Standard sockets (`AF_INET`, `AF_INET6`) operate at Layer 3/4 (IP and TCP/UDP). The kernel processes and strips the lower-layer headers before delivering payload to userspace.
+`AF_PACKET` provides a direct tap into Layer 2 (data link layer), delivering raw Ethernet frames directly from the device driver.
+
+#### Socket Types: `SOCK_RAW` vs `SOCK_DGRAM`
+| Socket Type | Link-Layer (Ethernet) Header | What userspace receives |
+| :--- | :--- | :--- |
+| **`SOCK_RAW`** | **Preserved (Included)** | Full frame starting with 14-byte Ethernet header (Destination, Source, EtherType). |
+| **`SOCK_DGRAM`** | **Stripped ("Cooked")** | Payload only; kernel strips the Ethernet header before returning bytes. |
+
+*This sniffer uses `SOCK_RAW` so we can inspect MAC addresses and link-layer protocol types.*
+
+#### The `htons()` Protocol Endianness Trap
+When creating the socket with `ETH_P_ALL` (capture all Ethernet protocols):
+```go
+fd, err := unix.Socket(
+    unix.AF_PACKET,
+    unix.SOCK_RAW,
+    int(htons(unix.ETH_P_ALL)),
+)
+```
+- `unix.ETH_P_ALL` is defined in Go in **host byte order** (`0x0003` on little-endian x86/ARM).
+- The Linux kernel expects the protocol argument in **network byte order (Big-Endian)**: `0x0300`.
+- **The Bug**: Passing raw `unix.ETH_P_ALL` (`0x0003`) causes the kernel to match `ETH_P_AX25` instead of all protocols, silently failing to capture normal traffic.
+- **The Fix**: `htons(unix.ETH_P_ALL)` swaps bytes: `(v << 8) | (v >> 8)` $\rightarrow$ `0x0300`.
+
+#### Interface Binding (`unix.SockaddrLinklayer`)
+- **Unbound Socket**: Registers to receive packets across **all** network interfaces on the host.
+- **Bound Socket**: Using `unix.Bind(fd, &unix.SockaddrLinklayer{Protocol: htons(unix.ETH_P_ALL), Ifindex: ifindex})` restricts capture exclusively to the specified interface. Interface names (e.g. `"eth0"`) must be converted to kernel numeric indices (`net.InterfaceByName`).
+
+#### Link-Layer Metadata: `Pkttype`
+When calling `unix.Recvfrom(fd, buffer, 0)`, the kernel populates link-layer metadata:
+```go
+if sll, ok := from.(*unix.SockaddrLinklayer); ok {
+    // sll.Pkttype, sll.Ifindex, sll.Protocol
+}
+```
+`sll.Pkttype` tells you how the packet was routed to this interface:
+- `PACKET_HOST (0)`: Addressed directly to our local interface's MAC.
+- `PACKET_BROADCAST (1)`: Link-layer broadcast (`ff:ff:ff:ff:ff:ff`).
+- `PACKET_MULTICAST (2)`: Link-layer multicast.
+- `PACKET_OTHERHOST (3)`: Addressed to another host; only captured in **promiscuous mode**.
+- `PACKET_OUTGOING (4)`: Outgoing packet transmitted by our own machine.
+
+#### Promiscuous Mode vs `ETH_P_ALL`
+- `ETH_P_ALL` controls **software protocol filtering** (accept all EtherTypes instead of just IPv4).
+- **Promiscuous mode** controls **hardware/driver filtering** on the physical NIC (accept all frames on the cable/radio, even if the destination MAC doesn't match our machine).
+
+---
+
+### 2. Memory Model & Zero-Copy Buffer Reuse
+
+High-performance packet capture requires careful memory management to avoid GC pauses and allocation overhead.
+
+```text
+1. Allocate once:
+   buffer := make([]byte, 65535)   // Pre-allocated capture buffer in heap
+         │
+2. Kernel writes n bytes:
+   n, _, err := unix.Recvfrom(fd, buffer, 0)
+         │
+3. Slice window:
+   packet := buffer[:n]             // Bounds packet without allocation
+         │
+4. Sub-slice payload:
+   frame.Payload = packet[14:]      // Points directly into `buffer` backing array!
+```
+
+#### Why `buffer[:n]` is Mandatory
+The receive buffer is allocated to 65,535 bytes (maximum theoretical IPv4 packet size). If an incoming packet is only 84 bytes (e.g. ICMP ping):
+- `n = 84`.
+- Passing `buffer` would cause parsers to read stale/garbage bytes from previous packets.
+- `buffer[:n]` creates a 0-allocation slice header bounded to the exact bytes received.
+
+#### Critical Memory Rule: Payload Slice Lifetime
+Because `frame.Payload` points directly into `buffer`:
+- **Current iteration**: Completely safe and zero-copy.
+- **Across iterations**: Overwritten on the very next `Recvfrom()` call!
+- **Rule**: If a frame or its payload must be buffered, sent over a Go channel, or processed in a background goroutine, you **must explicitly copy it**:
+  ```go
+  payloadCopy := append([]byte(nil), frame.Payload...)
+  ```
+
+---
+
+### 3. Ethernet Parsing & Header Invariants
+
+#### 14-Byte Ethernet II Invariant
+An Ethernet II header is strictly **14 bytes**:
+- `0..5` (6 bytes): Destination MAC
+- `6..11` (6 bytes): Source MAC
+- `12..13` (2 bytes): EtherType (Big-Endian network byte order)
+- `14..n` (variable): Payload
 
 ```go
-type EthernetFrame struct {
-    Destination [6]byte
-    Source      [6]byte
-    EtherType   uint16
-    Payload     []byte
+func parseEthernet(frame []byte) (EthernetFrame, error) {
+    if len(frame) < 14 {
+        return EthernetFrame{}, errors.New("frame too short")
+    }
+    var ethernet EthernetFrame
+
+    copy(ethernet.Destination[:], frame[0:6])
+    copy(ethernet.Source[:], frame[6:12])
+    ethernet.EtherType = binary.BigEndian.Uint16(frame[12:14])
+    ethernet.Payload = frame[14:]
+
+    return ethernet, nil
 }
 ```
 
-EtherType is stored in **network byte order (big endian)**:
+#### Key Distinction: Unknown EtherType vs Malformed Frame
+- **Malformed Frame**: Violates header invariants (`len(frame) < 14`). Slicing would panic or read corrupted fields. Must return an error.
+- **Unknown EtherType**: A structurally valid Ethernet frame whose payload protocol is unrecognized (e.g. `0x88f7` PTP or experimental protocols). The Ethernet header itself is completely valid and must be parsed and logged.
 
 ```go
-ethertype := binary.BigEndian.Uint16(frame[12:14])
-```
-
-Common EtherTypes:
-
-```text
-0x0800 → IPv4
-0x0806 → ARP
-0x86DD → IPv6
-```
-
-## Packet validation
-
-Before indexing/slicing fixed fields, validate length:
-
-```go
-if len(frame) < 14 {
-    return EthernetFrame{}, err
+func etherTypeName(proto uint16) string {
+    switch proto {
+    case 0x0800:
+        return "IPv4"
+    case 0x0806:
+        return "ARP"
+    case 0x86dd:
+        return "IPv6"
+    default:
+        return fmt.Sprintf("Unknown (0x%04x)", proto)
+    }
 }
 ```
 
-### Interview essentials
-
-- Why big endian? Network protocols commonly define multi-byte integers in **network byte order**.
-- Why `frame[14:]`? Ethernet header occupies the first 14 bytes.
-- Why `[6]byte` for MAC? Ethernet MAC addresses are 6 bytes.
-- Why `uint16` for EtherType? EtherType occupies 2 bytes.
-
----
-
-## Milestone 2 — Linux Fundamentals
-
-## Userspace vs Kernel Space
-
-```text
-Go program (userspace)
-        │
-      syscall
-        ▼
-Linux kernel
-        │
-      driver
-        ▼
-       NIC
-```
-
-Applications do not directly control the NIC. Privileged networking operations are handled by the kernel.
-
-## Syscall
-
-A **system call** is the controlled interface used by userspace to request work from the kernel.
-
-```text
-userspace → syscall → kernel → result
-```
-
-A normal function call usually stays in the process; a syscall crosses into the kernel.
-
----
-
-## File Descriptors
-
-A **file descriptor (FD)** is a small integer used by a process to refer to a kernel-managed resource.
-
-```text
-0 → stdin
-1 → stdout
-2 → stderr
-3 → another resource
-```
-
-For a socket:
-
-```text
-Go process
-   ↓
-fd = 3
-   ↓
-kernel-managed socket
-```
-
-**Important:** the FD is a handle/reference, not the socket itself.
-
-Typical lifecycle:
-
-```text
-socket() → fd → use resource → close(fd)
-```
-
----
-
-## Sockets
-
-A socket is a **kernel-managed communication endpoint**.
-
-Conceptually:
-
+#### Bounded Payload Preview
+To prevent megabytes of payload hex from flooding the terminal, payloads are previewed up to 32 bytes using Go's built-in `min()`:
 ```go
-fd, err := unix.Socket(family, type, protocol)
-```
+const previewLen = 32
 
-The three parameters answer:
-
-```text
-1. Which address family?
-2. What socket type?
-3. Which protocol?
-```
-
-For this project:
-
-```text
-AF_PACKET + SOCK_RAW + ETH_P_ALL
-```
-
-Go uses:
-
-```go
-golang.org/x/sys/unix
-```
-
----
-
-## AF_PACKET
-
-`AF_PACKET` is a Linux address family for **link-layer packet access**.
-
-```text
-AF_INET   → IPv4 family
-AF_PACKET → link/Ethernet layer access
-```
-
-It lets userspace access packets at the Ethernet/link layer rather than starting from an application-level stream.
-
-**Do not say:** AF_PACKET is the socket itself.
-
-**Say:** AF_PACKET is the socket's address family.
-
----
-
-## SOCK_RAW
-
-`SOCK_RAW` requests **raw packet access**.
-
-For `AF_PACKET`, this allows the socket to receive the link-layer header as part of the packet.
-
-```text
-AF_PACKET → where in networking
-SOCK_RAW  → raw packet representation
-```
-
-It does **not** mean bypassing the kernel; packets are still received and processed by Linux before userspace accesses them.
-
----
-
-## ETH_P_ALL
-
-`ETH_P_ALL` tells the packet socket to accept packets for **all Ethernet protocols**, instead of restricting reception to one EtherType.
-
-```text
-IPv4 ─┐
-ARP  ─┼→ packet socket
-IPv6 ─┘
-```
-
-This is why the sniffer can later inspect the EtherType itself.
-
-```text
-Kernel filtering → which packets reach socket
-Our parser       → what we do with the packet
-```
-
-### Network Byte Order & `htons()`
-
-In code, we pass `htons(unix.ETH_P_ALL)` instead of raw `unix.ETH_P_ALL`:
-
-```go
-func htons(v uint16) uint16 {
-    return (v << 8) | (v >> 8)
+func formatPayload(p []byte) string {
+    preview := p[:min(len(p), previewLen)]
+    ellipsis := ""
+    if len(p) > previewLen {
+        ellipsis = "..."
+    }
+    return fmt.Sprintf("%d bytes [%x%s]", len(p), preview, ellipsis)
 }
 ```
 
-**Why is `htons()` required?**
-- `unix.ETH_P_ALL` is defined in host byte order (`0x0003` on little-endian x86/ARM).
-- The Linux kernel socket layer expects the protocol parameter in **network byte order (Big-Endian)** (`0x0300`).
-- Passing `0x0003` directly without `htons()` causes the kernel to match `ETH_P_AX25` instead of `ETH_P_ALL`, silently failing to capture all packets.
+---
+
+### 4. Advanced High-Throughput Concepts (Scaling to 10G+)
+
+Standard `recvfrom()` involves one system call and one kernel-to-userspace memory copy per packet. For gigabit/10G+ rates, systems utilize advanced Linux capture mechanisms:
+
+1. **`PACKET_MMAP` / `PACKET_RX_RING`**:
+   Maps a circular ring buffer in kernel memory directly into userspace via `mmap()`. Packets are read directly from shared memory, eliminating per-packet syscalls and memory copies (zero-copy capture).
+2. **`TPACKET_V1`, `V2`, `V3`**:
+   - `V1/V2`: Fixed-size frame descriptors.
+   - `V3`: Block-level variable framing with timeout-based batching, significantly reducing CPU interrupts under heavy load.
+3. **`PACKET_FANOUT`**:
+   Load-balances incoming packets across multiple sockets and worker goroutines/threads using CPU hash (e.g. `PACKET_FANOUT_HASH` based on IP 5-tuple).
 
 ---
 
-## socket() → bind() → recvfrom()
+## Unit Testing Strategy (`ethernet_test.go`)
 
-This distinction is one of the most important interview points.
+Because parsing logic is isolated from OS sockets, unit tests run deterministically and natively on any OS:
 
-## `socket()`
-
-**Creates** the kernel-managed socket and returns an FD.
-
-```text
-socket()
-  ↓
-FD
-```
-
-## `bind()`
-
-**Associates** the socket with local/address/interface information.
-
-For our packet socket, binding can restrict reception to a specific network interface.
-
-## `recvfrom()`
-
-**Receives** data from the socket into userspace memory.
-
-```text
-socket()  → create socket
-bind()    → associate socket with interface/address
-recvfrom()→ receive packet bytes
-```
+| Test Name | Scenario Tested | Key Verification |
+| :--- | :--- | :--- |
+| `TestParseEthernetTooShort` | Frame `< 14` bytes | Returns `errors.New("frame too short")` without panic |
+| `TestParseEthernetEmptyPayload`| Boundary frame `== 14` bytes | Returns valid header and `len(Payload) == 0` |
+| `TestParseEthernet` | Frame with payload (`18` bytes) | Destination MAC, Source MAC, EtherType, and payload match exact bytes |
+| `TestEtherTypeName` | Protocol mapping | Table-driven test for IPv4, ARP, IPv6, and unknown fallback |
+| `TestFormatMac` | MAC string conversion | Validates 6-byte hex colon-separated formatting |
 
 ---
 
-## Network Interface: name → index
+## How to Run & Test
 
-The interface may be known by name (e.g. `"eth0"` or passed via `os.Args[1]`).
-
-Linux packet-socket addressing uses a numeric **interface index**.
-
-In Go, resolve the interface using the standard library `net` package:
-
-```go
-ifaceInfo, err := net.InterfaceByName("eth0")
-if err != nil {
-    log.Fatalf("InterfaceByName: %v", err)
-}
-ifindex := ifaceInfo.Index
+### Run Unit Tests (Native macOS / Linux)
+```bash
+go test -v .
 ```
 
-*(Note: At the direct syscall level, `unix.If_nametoindex("eth0")` can also be used.)*
+### Run Live Sniffer (Linux / Docker)
+Raw packet sockets require root or `CAP_NET_RAW`. 
 
-Conceptually:
-
-```text
-"eth0" → InterfaceByName() / If_nametoindex() → interface index
+**Using Docker (macOS / Linux):**
+```bash
+docker compose up --build
 ```
 
-The index is a kernel identifier for the network interface; it is not the same concept as a file descriptor.
-
----
-
-## SockaddrLinklayer
-
-AF_PACKET uses link-layer socket addressing.
-
-In Go:
-
-```go
-addr := &unix.SockaddrLinklayer{
-    Protocol: htons(unix.ETH_P_ALL),
-    Ifindex:  ifindex,
-}
-```
-
-Key fields:
-
-```text
-Protocol → Ethernet protocol selection (in network byte order via htons)
-Ifindex  → target network interface index
-```
-
-Then:
-
-```go
-unix.Bind(fd, addr)
-```
-
-Conceptually:
-
-```text
-fd + interface information
-          ↓
-       bind()
-          ↓
-socket associated with eth0 (restricting capture to this interface)
+**Directly on Linux:**
+```bash
+go build -o sniffer .
+sudo ./sniffer eth0
 ```
 
 ---
 
-## recvfrom() and Buffers
+## Interview Quick-Fire (Revision Q&A)
 
-Allocate userspace storage:
+#### Q1: What is a file descriptor (FD)?
+**A**: A small non-negative integer used by userspace processes to reference an open, kernel-managed I/O resource (file, socket, pipe). It indexes the process's internal file descriptor table.
 
-```go
-buffer := make([]byte, 65535)
-```
+#### Q2: What does `unix.Socket()` do under the hood?
+**A**: It executes the `socket` syscall, asking the kernel networking subsystem to allocate a socket data structure with the specified family (`AF_PACKET`), type (`SOCK_RAW`), and protocol (`htons(ETH_P_ALL)`), returning an integer file descriptor handle.
 
-Receive:
+#### Q3: What is the difference between `SOCK_RAW` and `SOCK_DGRAM` in `AF_PACKET`?
+**A**: `SOCK_RAW` delivers the complete frame including the 14-byte Ethernet header. `SOCK_DGRAM` delivers a "cooked" frame where the kernel strips the link-layer header before passing the packet to userspace.
 
-```go
-n, _, err := unix.Recvfrom(fd, buffer, 0)
-```
+#### Q4: Why must `unix.ETH_P_ALL` be wrapped in `htons()`?
+**A**: `ETH_P_ALL` is defined in host byte order (`0x0003` on little-endian). The Linux kernel socket layer expects protocol arguments in network byte order (Big-Endian: `0x0300`). Passing `0x0003` without `htons()` mistakenly matches `ETH_P_AX25` instead of `ETH_P_ALL`.
 
-Key idea:
+#### Q5: Why do we slice `buffer[:n]` instead of reading `buffer`?
+**A**: The receive buffer is pre-allocated (65,535 bytes) to prevent dynamic reallocations. `n` represents the actual bytes written by the kernel for this packet. Without slicing `buffer[:n]`, the parser would process uninitialized memory or leftover bytes from previous packets.
 
-```text
-buffer size ≠ packet size
-```
+#### Q6: What is the minimum size of an Ethernet II frame, and why?
+**A**: 14 bytes: 6 bytes Destination MAC + 6 bytes Source MAC + 2 bytes EtherType. Any frame with fewer than 14 bytes is truncated/malformed.
 
-If `n == 84`:
+#### Q7: Does an unknown EtherType mean the packet is malformed?
+**A**: No. An unknown EtherType is a structurally valid Ethernet frame carrying a payload protocol our application has not yet implemented (e.g. `0x88f7` PTP). A malformed frame violates header structure (`len < 14`).
 
-```go
-packet := buffer[:n]
-```
+#### Q8: What is the memory lifetime caveat with `frame.Payload`?
+**A**: `frame.Payload` is a zero-copy slice pointing directly into the capture buffer. When the next packet arrives and `unix.Recvfrom()` executes, the backing memory is overwritten. If a frame needs to be retained, its payload must be explicitly copied (`append([]byte(nil), frame.Payload...)`).
 
-means the actual received packet is the first 84 bytes.
+#### Q9: What does `sll.Pkttype` tell you?
+**A**: The direction and destination classification determined by the driver: `PACKET_HOST` (for our MAC), `PACKET_BROADCAST`, `PACKET_MULTICAST`, `PACKET_OTHERHOST` (for another machine, captured in promiscuous mode), and `PACKET_OUTGOING`.
 
-```text
-buffer → storage
-n      → bytes actually received
-buffer[:n] → actual packet
-```
-
-`recvfrom()` may **block** when no packet is available until data arrives (for a blocking socket).
+#### Q10: How do production sniffers avoid the overhead of `recvfrom()`?
+**A**: They use `PACKET_MMAP` / `PACKET_RX_RING` to map a kernel ring buffer directly into userspace memory. This achieves zero-copy packet capture and eliminates per-packet system call context switching.
 
 ---
 
-## Packet Flow Mental Model
+## Roadmap & Current Progress
 
 ```text
-NIC
- ↓
-Linux kernel networking
- ↓
-AF_PACKET raw socket
- ↓
-recvfrom(fd, buffer, ...)
- ↓
-Go userspace buffer
- ↓
-buffer[:n]
- ↓
-parseEthernet()
-```
-
-This connects Milestone 1 to Milestone 2:
-
-```text
-Milestone 1:
-fake []byte → parseEthernet()
-
-Milestone 2:
-real NIC → kernel → AF_PACKET → recvfrom() → []byte
-```
-
----
-
-## Privileges
-
-Creating raw packet sockets requires appropriate Linux privileges/capabilities; commonly this means **`CAP_NET_RAW`**.
-
-In this project, AF_PACKET was successfully tested inside a **Linux Docker container** after fixing the container's privileges.
-
-The development machine is macOS, so Linux-specific `AF_PACKET` testing is done in Linux/Docker.
-
----
-
-## Interview Quick-Fire
-
-### What is a file descriptor?
-
-A small integer handle a process uses to refer to a kernel-managed resource.
-
-### Is an FD the socket?
-
-No. It is the process's handle/reference to the kernel-managed socket.
-
-### What does `socket()` do?
-
-Requests the kernel to create a socket of a specified family, type, and protocol, then returns an FD.
-
-### What does `AF_PACKET` mean?
-
-Linux link-layer packet socket address family; useful for Ethernet-level access.
-
-### What does `SOCK_RAW` mean here?
-
-Request raw packet access, including the link-layer header for an AF_PACKET raw socket.
-
-### What does `ETH_P_ALL` mean?
-
-Accept packets for all Ethernet protocols rather than one specific EtherType.
-
-### Why `bind()`?
-
-To associate the packet socket with interface/address information, such as a specific interface.
-
-### Why an interface index instead of `"eth0"`?
-
-The low-level packet address structure identifies the interface using Linux's numeric interface index.
-
-### What does `recvfrom()` do?
-
-Receives data from the socket and places it into a userspace buffer.
-
-### Why do we need `n` from `recvfrom()`?
-
-Because the buffer is larger than most packets; `n` tells us how many bytes were actually received.
-
-### Does `recvfrom()` read directly from the NIC?
-
-No. The NIC delivers traffic to the Linux kernel; `recvfrom()` retrieves data made available through the socket.
-
-### Why can `recvfrom()` block?
-
-A blocking socket waits when no data is currently available.
-
-### Why do raw packet sockets need privileges?
-
-Because raw packet access is a privileged networking operation; Linux commonly requires `CAP_NET_RAW`.
-
----
-
-## Current Progress
-
-```text
-Milestone 1 ✅  Go/binary/Ethernet parsing
-Milestone 2 ✅  Linux/syscalls/FDs/sockets/bind/recvfrom
-Milestone 3 ✅  AF_PACKET deep dive
-Milestone 4 ✅  First real packet capture (live capture loop + metadata)
-Milestone 5 ✅  Connect capture to Ethernet parser (end-to-end L2 sniffer)
-Milestone 6 →   Protocol Decoding: ARP / IPv4 / IPv6
-Milestone 7     Protocol Decoding: TCP / UDP / ICMP
-Milestone 8     Go performance & systems engineering
-Milestone 9     Linux capture internals
-Milestone 10    PACKET_RX_RING / PACKET_MMAP / TPACKET
+Milestone 1  ✅  Go + Packet/Binary Fundamentals + Ethernet Parser
+Milestone 2  ✅  Linux Fundamentals (Userspace vs Kernel, Syscalls, FDs, Sockets)
+Milestone 3  ✅  AF_PACKET Deep Dive (SOCK_RAW, htons, sockaddr_ll, Pkttype)
+Milestone 4  ✅  First Real Packet Capture (Blocking capture loop, buffer reuse)
+Milestone 5  ✅  Robust Ethernet Parsing (Header invariants, memory model, unit tests)
+Milestone 6  ⏳  Protocol Decoding: ARP / IPv4 / IPv6  <-- CURRENT POSITION
+Milestone 7  ⬜  Protocol Decoding: TCP / UDP / ICMP
+Milestone 8  ⬜  Go Systems & Performance Engineering (Graceful shutdown, zero-alloc)
+Milestone 9  ⬜  Linux Packet-Capture Internals (NAPI, ring buffers, sk_buff)
+Milestone 10 ⬜  Advanced AF_PACKET (PACKET_MMAP, TPACKET_V3, FANOUT)
 ```
