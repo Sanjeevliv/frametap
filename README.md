@@ -58,10 +58,12 @@ To allow native development and unit testing on any platform (macOS/Windows/Linu
 ### 1. Linux Raw Socket Mechanics (`AF_PACKET`)
 
 #### Address Family: `AF_PACKET`
+
 Standard sockets (`AF_INET`, `AF_INET6`) operate at Layer 3/4 (IP and TCP/UDP). The kernel processes and strips the lower-layer headers before delivering payload to userspace.
 `AF_PACKET` provides a direct tap into Layer 2 (data link layer), delivering raw Ethernet frames directly from the device driver.
 
 #### Socket Types: `SOCK_RAW` vs `SOCK_DGRAM`
+
 | Socket Type | Link-Layer (Ethernet) Header | What userspace receives |
 | :--- | :--- | :--- |
 | **`SOCK_RAW`** | **Preserved (Included)** | Full frame starting with 14-byte Ethernet header (Destination, Source, EtherType). |
@@ -70,7 +72,9 @@ Standard sockets (`AF_INET`, `AF_INET6`) operate at Layer 3/4 (IP and TCP/UDP). 
 *This sniffer uses `SOCK_RAW` so we can inspect MAC addresses and link-layer protocol types.*
 
 #### The `htons()` Protocol Endianness Trap
+
 When creating the socket with `ETH_P_ALL` (capture all Ethernet protocols):
+
 ```go
 fd, err := unix.Socket(
     unix.AF_PACKET,
@@ -78,23 +82,29 @@ fd, err := unix.Socket(
     int(htons(unix.ETH_P_ALL)),
 )
 ```
+
 - `unix.ETH_P_ALL` is defined in Go in **host byte order** (`0x0003` on little-endian x86/ARM).
 - The Linux kernel expects the protocol argument in **network byte order (Big-Endian)**: `0x0300`.
 - **The Bug**: Passing raw `unix.ETH_P_ALL` (`0x0003`) causes the kernel to match `ETH_P_AX25` instead of all protocols, silently failing to capture normal traffic.
 - **The Fix**: `htons(unix.ETH_P_ALL)` swaps bytes: `(v << 8) | (v >> 8)` $\rightarrow$ `0x0300`.
 
 #### Interface Binding (`unix.SockaddrLinklayer`)
+
 - **Unbound Socket**: Registers to receive packets across **all** network interfaces on the host.
 - **Bound Socket**: Using `unix.Bind(fd, &unix.SockaddrLinklayer{Protocol: htons(unix.ETH_P_ALL), Ifindex: ifindex})` restricts capture exclusively to the specified interface. Interface names (e.g. `"eth0"`) must be converted to kernel numeric indices (`net.InterfaceByName`).
 
 #### Link-Layer Metadata: `Pkttype`
+
 When calling `unix.Recvfrom(fd, buffer, 0)`, the kernel populates link-layer metadata:
+
 ```go
 if sll, ok := from.(*unix.SockaddrLinklayer); ok {
     // sll.Pkttype, sll.Ifindex, sll.Protocol
 }
 ```
+
 `sll.Pkttype` tells you how the packet was routed to this interface:
+
 - `PACKET_HOST (0)`: Addressed directly to our local interface's MAC.
 - `PACKET_BROADCAST (1)`: Link-layer broadcast (`ff:ff:ff:ff:ff:ff`).
 - `PACKET_MULTICAST (2)`: Link-layer multicast.
@@ -102,6 +112,7 @@ if sll, ok := from.(*unix.SockaddrLinklayer); ok {
 - `PACKET_OUTGOING (4)`: Outgoing packet transmitted by our own machine.
 
 #### Promiscuous Mode vs `ETH_P_ALL`
+
 - `ETH_P_ALL` controls **software protocol filtering** (accept all EtherTypes instead of just IPv4).
 - **Promiscuous mode** controls **hardware/driver filtering** on the physical NIC (accept all frames on the cable/radio, even if the destination MAC doesn't match our machine).
 
@@ -126,16 +137,21 @@ High-performance packet capture requires careful memory management to avoid GC p
 ```
 
 #### Why `buffer[:n]` is Mandatory
+
 The receive buffer is allocated to 65,535 bytes (maximum theoretical IPv4 packet size). If an incoming packet is only 84 bytes (e.g. ICMP ping):
+
 - `n = 84`.
 - Passing `buffer` would cause parsers to read stale/garbage bytes from previous packets.
 - `buffer[:n]` creates a 0-allocation slice header bounded to the exact bytes received.
 
 #### Critical Memory Rule: Payload Slice Lifetime
+
 Because `frame.Payload` points directly into `buffer`:
+
 - **Current iteration**: Completely safe and zero-copy.
 - **Across iterations**: Overwritten on the very next `Recvfrom()` call!
 - **Rule**: If a frame or its payload must be buffered, sent over a Go channel, or processed in a background goroutine, you **must explicitly copy it**:
+
   ```go
   payloadCopy := append([]byte(nil), frame.Payload...)
   ```
@@ -145,7 +161,9 @@ Because `frame.Payload` points directly into `buffer`:
 ### 3. Ethernet Parsing & Header Invariants
 
 #### 14-Byte Ethernet II Invariant
+
 An Ethernet II header is strictly **14 bytes**:
+
 - `0..5` (6 bytes): Destination MAC
 - `6..11` (6 bytes): Source MAC
 - `12..13` (2 bytes): EtherType (Big-Endian network byte order)
@@ -168,6 +186,7 @@ func parseEthernet(frame []byte) (EthernetFrame, error) {
 ```
 
 #### Key Distinction: Unknown EtherType vs Malformed Frame
+
 - **Malformed Frame**: Violates header invariants (`len(frame) < 14`). Slicing would panic or read corrupted fields. Must return an error.
 - **Unknown EtherType**: A structurally valid Ethernet frame whose payload protocol is unrecognized (e.g. `0x88f7` PTP or experimental protocols). The Ethernet header itself is completely valid and must be parsed and logged.
 
@@ -187,7 +206,9 @@ func etherTypeName(proto uint16) string {
 ```
 
 #### Bounded Payload Preview
+
 To prevent megabytes of payload hex from flooding the terminal, payloads are previewed up to 32 bytes using Go's built-in `min()`:
+
 ```go
 const previewLen = 32
 
@@ -224,7 +245,7 @@ Because parsing logic is isolated from OS sockets, unit tests run deterministica
 | Test Name | Scenario Tested | Key Verification |
 | :--- | :--- | :--- |
 | `TestParseEthernetTooShort` | Frame `< 14` bytes | Returns `errors.New("frame too short")` without panic |
-| `TestParseEthernetEmptyPayload`| Boundary frame `== 14` bytes | Returns valid header and `len(Payload) == 0` |
+| `TestParseEthernetEmptyPayload` | Boundary frame `== 14` bytes | Returns valid header and `len(Payload) == 0` |
 | `TestParseEthernet` | Frame with payload (`18` bytes) | Destination MAC, Source MAC, EtherType, and payload match exact bytes |
 | `TestEtherTypeName` | Protocol mapping | Table-driven test for IPv4, ARP, IPv6, and unknown fallback |
 | `TestFormatMac` | MAC string conversion | Validates 6-byte hex colon-separated formatting |
@@ -234,19 +255,23 @@ Because parsing logic is isolated from OS sockets, unit tests run deterministica
 ## How to Run & Test
 
 ### Run Unit Tests (Native macOS / Linux)
+
 ```bash
 go test -v .
 ```
 
 ### Run Live Sniffer (Linux / Docker)
-Raw packet sockets require root or `CAP_NET_RAW`. 
+
+Raw packet sockets require root or `CAP_NET_RAW`.
 
 **Using Docker (macOS / Linux):**
+
 ```bash
 docker compose up --build
 ```
 
 **Directly on Linux:**
+
 ```bash
 go build -o sniffer .
 sudo ./sniffer eth0
@@ -256,34 +281,44 @@ sudo ./sniffer eth0
 
 ## Interview Quick-Fire (Revision Q&A)
 
-#### Q1: What is a file descriptor (FD)?
+### Q1: What is a file descriptor (FD)?
+
 **A**: A small non-negative integer used by userspace processes to reference an open, kernel-managed I/O resource (file, socket, pipe). It indexes the process's internal file descriptor table.
 
-#### Q2: What does `unix.Socket()` do under the hood?
+### Q2: What does `unix.Socket()` do under the hood?
+
 **A**: It executes the `socket` syscall, asking the kernel networking subsystem to allocate a socket data structure with the specified family (`AF_PACKET`), type (`SOCK_RAW`), and protocol (`htons(ETH_P_ALL)`), returning an integer file descriptor handle.
 
-#### Q3: What is the difference between `SOCK_RAW` and `SOCK_DGRAM` in `AF_PACKET`?
+### Q3: What is the difference between `SOCK_RAW` and `SOCK_DGRAM` in `AF_PACKET`?
+
 **A**: `SOCK_RAW` delivers the complete frame including the 14-byte Ethernet header. `SOCK_DGRAM` delivers a "cooked" frame where the kernel strips the link-layer header before passing the packet to userspace.
 
-#### Q4: Why must `unix.ETH_P_ALL` be wrapped in `htons()`?
+### Q4: Why must `unix.ETH_P_ALL` be wrapped in `htons()`?
+
 **A**: `ETH_P_ALL` is defined in host byte order (`0x0003` on little-endian). The Linux kernel socket layer expects protocol arguments in network byte order (Big-Endian: `0x0300`). Passing `0x0003` without `htons()` mistakenly matches `ETH_P_AX25` instead of `ETH_P_ALL`.
 
-#### Q5: Why do we slice `buffer[:n]` instead of reading `buffer`?
+### Q5: Why do we slice `buffer[:n]` instead of reading `buffer`?
+
 **A**: The receive buffer is pre-allocated (65,535 bytes) to prevent dynamic reallocations. `n` represents the actual bytes written by the kernel for this packet. Without slicing `buffer[:n]`, the parser would process uninitialized memory or leftover bytes from previous packets.
 
-#### Q6: What is the minimum size of an Ethernet II frame, and why?
+### Q6: What is the minimum size of an Ethernet II frame, and why?
+
 **A**: 14 bytes: 6 bytes Destination MAC + 6 bytes Source MAC + 2 bytes EtherType. Any frame with fewer than 14 bytes is truncated/malformed.
 
-#### Q7: Does an unknown EtherType mean the packet is malformed?
+### Q7: Does an unknown EtherType mean the packet is malformed?
+
 **A**: No. An unknown EtherType is a structurally valid Ethernet frame carrying a payload protocol our application has not yet implemented (e.g. `0x88f7` PTP). A malformed frame violates header structure (`len < 14`).
 
-#### Q8: What is the memory lifetime caveat with `frame.Payload`?
+### Q8: What is the memory lifetime caveat with `frame.Payload`?
+
 **A**: `frame.Payload` is a zero-copy slice pointing directly into the capture buffer. When the next packet arrives and `unix.Recvfrom()` executes, the backing memory is overwritten. If a frame needs to be retained, its payload must be explicitly copied (`append([]byte(nil), frame.Payload...)`).
 
-#### Q9: What does `sll.Pkttype` tell you?
+### Q9: What does `sll.Pkttype` tell you?
+
 **A**: The direction and destination classification determined by the driver: `PACKET_HOST` (for our MAC), `PACKET_BROADCAST`, `PACKET_MULTICAST`, `PACKET_OTHERHOST` (for another machine, captured in promiscuous mode), and `PACKET_OUTGOING`.
 
-#### Q10: How do production sniffers avoid the overhead of `recvfrom()`?
+### Q10: How do production sniffers avoid the overhead of `recvfrom()`?
+
 **A**: They use `PACKET_MMAP` / `PACKET_RX_RING` to map a kernel ring buffer directly into userspace memory. This achieves zero-copy packet capture and eliminates per-packet system call context switching.
 
 ---
