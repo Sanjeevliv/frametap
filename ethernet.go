@@ -56,3 +56,16 @@ func formatPayload(p []byte) string {
 	}
 	return fmt.Sprintf("%d bytes [%x%s]", len(p), preview, ellipsis)
 }
+
+func etherTypeName(proto uint16) string {
+	switch proto {
+	case 0x0800:
+		return "IPv4"
+	case 0x0806:
+		return "ARP"
+	case 0x86dd:
+		return "IPv6"
+	default:
+		return fmt.Sprintf("Unknown (0x%x)", proto)
+	}
+}

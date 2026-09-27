@@ -74,3 +74,28 @@ func TestParseEthernet(t *testing.T) {
 		t.Fatalf("unexpected payload: %x", ethernet.Payload)
 	}
 }
+
+func TestEtherTypeName(t *testing.T) {
+	tests := []struct {
+		etherType uint16
+		expected  string
+	}{
+		{0x0800, "IPv4"},
+		{0x0806, "ARP"},
+		{0x86dd, "IPv6"},
+		{0xffff, "Unknown (0xffff)"},
+	}
+
+	for _, test := range tests {
+		got := etherTypeName(test.etherType)
+
+		if got != test.expected {
+			t.Fatalf(
+				"EtherType 0x%04x: expected %q, got %q",
+				test.etherType,
+				test.expected,
+				got,
+			)
+		}
+	}
+}
