@@ -117,5 +117,7 @@ func main() {
 		fmt.Printf("EtherType: 0x%04x (%s)\n", frame.EtherType, etherTypeName(frame.EtherType))
 		fmt.Printf("Payload: %s\n", formatPayload(frame.Payload))
 
+		// M6: dispatch from Ethernet EtherType to ARP / IPv4 / IPv6.
+		printNetworkLayer(frame)
 	}
 }
