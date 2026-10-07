@@ -1,4 +1,4 @@
-package main
+package protocols
 
 import (
 	"encoding/binary"
@@ -17,20 +17,7 @@ type ARPPacket struct {
 	TargetIP       [4]byte
 }
 
-func parsePayload(frame EthernetFrame) error {
-	switch frame.EtherType {
-	case 0x0800:
-		return parseIPv4(frame.Payload)
-	case 0x0806:
-		return parseARP(frame.Payload)
-	case 0x86dd:
-		return parseIPv6(frame.Payload)
-	default:
-		return fmt.Errorf("unsupported EtherType: %x", frame.EtherType)
-	}
-}
-
-func parseARP(data []byte) (ARPPacket, error) {
+func ParseARP(data []byte) (ARPPacket, error) {
 	var arp ARPPacket
 
 	if len(data) < 28 {
@@ -44,12 +31,4 @@ func parseARP(data []byte) (ARPPacket, error) {
 	arp.Operation = binary.BigEndian.Uint16(data[6:8])
 
 	return arp, nil
-}
-
-func parseIPv4(data []byte) (IPv4Packet, error) {
-
-}
-
-func parseIPv6(data []byte) (IPv6Packet, error) {
-
 }

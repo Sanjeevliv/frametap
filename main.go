@@ -12,6 +12,8 @@ import (
 	"net"
 	"os"
 
+	"GoPacketSniffer/protocols"
+
 	"golang.org/x/sys/unix"
 )
 
@@ -114,8 +116,12 @@ func main() {
 
 		fmt.Printf("Destination: %s\n", formatMAC(frame.Destination))
 		fmt.Printf("Source: %s\n", formatMAC(frame.Source))
-		fmt.Printf("EtherType: 0x%04x (%s)\n", frame.EtherType, etherTypeName(frame.EtherType))
+		fmt.Printf("EtherType: 0x%04x (%s)\n", frame.EtherType, protocols.EtherTypeName(frame.EtherType))
 		fmt.Printf("Payload: %s\n", formatPayload(frame.Payload))
+
+		if err := protocols.Dispatch(frame.EtherType, frame.Payload); err != nil {
+			log.Printf("protocols.Dispatch: %v", err)
+		}
 
 	}
 }
