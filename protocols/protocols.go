@@ -39,6 +39,6 @@ func Dispatch(etherType uint16, payload []byte) error {
 		_, err := ParseIPv6(payload)
 		return err
 	default:
-		return fmt.Errorf("unsupported EtherType: 0x%04x", etherType)
+		return nil
 	}
 }

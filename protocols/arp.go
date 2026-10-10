@@ -8,13 +8,15 @@ import (
 type ARPPacket struct {
 	HardwareType   uint16
 	ProtocolType   uint16
-	HardwareLength byte
-	ProtocolLength byte
+	HardwareLength uint8
+	ProtocolLength uint8
 	Operation      uint16
-	SenderMAC      [6]byte
-	SenderIP       [4]byte
-	TargetMAC      [6]byte
-	TargetIP       [4]byte
+
+	SenderMAC [6]byte
+	SenderIP  [4]byte
+
+	TargetMAC [6]byte
+	TargetIP  [4]byte
 }
 
 func ParseARP(data []byte) (ARPPacket, error) {
