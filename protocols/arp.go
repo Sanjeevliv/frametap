@@ -67,3 +67,32 @@ func ParseARP(data []byte) (ARPPacket, error) {
 
 	return arp, nil
 }
+
+func arpOperationName(operation uint16) string {
+	switch operation {
+	case 1:
+		return "Request"
+	case 2:
+		return "Reply"
+	default:
+		return fmt.Sprintf("Unknown (%d)", operation)
+	}
+}
+
+func formatIPv4(ip [4]byte) string {
+	return fmt.Sprintf(
+		"%d.%d.%d.%d",
+		ip[0],
+		ip[1],
+		ip[2],
+		ip[3],
+	)
+}
+
+func printARP(arp ARPPacket) {
+	fmt.Printf("ARP %s\n", arpOperationName(arp.Operation))
+	fmt.Printf("  Sender MAC: %s\n", formatMAC(arp.SenderMAC))
+	fmt.Printf("  Sender IP:  %s\n", formatIPv4(arp.SenderIP))
+	fmt.Printf("  Target MAC: %s\n", formatMAC(arp.TargetMAC))
+	fmt.Printf("  Target IP:  %s\n", formatIPv4(arp.TargetIP))
+}
