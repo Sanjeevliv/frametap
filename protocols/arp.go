@@ -28,9 +28,17 @@ func ParseARP(data []byte) (ARPPacket, error) {
 
 	arp.HardwareType = binary.BigEndian.Uint16(data[0:2])
 	arp.ProtocolType = binary.BigEndian.Uint16(data[2:4])
+
 	arp.HardwareLength = data[4]
 	arp.ProtocolLength = data[5]
+
 	arp.Operation = binary.BigEndian.Uint16(data[6:8])
+
+	copy(arp.SenderMAC[:], data[8:14])
+	copy(arp.SenderIP[:], data[14:18])
+
+	copy(arp.TargetMAC[:], data[18:24])
+	copy(arp.TargetIP[:], data[24:28])
 
 	return arp, nil
 }
