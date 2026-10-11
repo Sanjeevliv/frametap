@@ -34,6 +34,31 @@ func ParseARP(data []byte) (ARPPacket, error) {
 
 	arp.Operation = binary.BigEndian.Uint16(data[6:8])
 
+	if arp.HardwareType != 1 {
+		return arp, fmt.Errorf(
+			"unsupported ARP hardware type: %d",
+			arp.HardwareType,
+		)
+	}
+	if arp.ProtocolType != 0x0800 {
+		return arp, fmt.Errorf(
+			"unsupported ARP protocol type: %d",
+			arp.ProtocolType,
+		)
+	}
+	if arp.HardwareLength != 6 {
+		return arp, fmt.Errorf(
+			"unsupported ARP hardware length: %d",
+			arp.HardwareLength,
+		)
+	}
+	if arp.ProtocolLength != 4 {
+		return arp, fmt.Errorf(
+			"unsupported ARP protocol length: %d",
+			arp.ProtocolLength,
+		)
+	}
+
 	copy(arp.SenderMAC[:], data[8:14])
 	copy(arp.SenderIP[:], data[14:18])
 
