@@ -79,16 +79,6 @@ func arpOperationName(operation uint16) string {
 	}
 }
 
-func formatIPv4(ip [4]byte) string {
-	return fmt.Sprintf(
-		"%d.%d.%d.%d",
-		ip[0],
-		ip[1],
-		ip[2],
-		ip[3],
-	)
-}
-
 func printARP(arp ARPPacket) {
 	fmt.Printf("ARP %s\n", arpOperationName(arp.Operation))
 	fmt.Printf("  Sender MAC: %s\n", formatMAC(arp.SenderMAC))
