@@ -114,8 +114,8 @@ func main() {
 			continue
 		}
 
-		fmt.Printf("Destination: %s\n", formatMAC(frame.Destination))
-		fmt.Printf("Source: %s\n", formatMAC(frame.Source))
+		fmt.Printf("Destination: %s\n", protocols.FormatMAC(frame.Destination))
+		fmt.Printf("Source: %s\n", protocols.FormatMAC(frame.Source))
 		fmt.Printf("EtherType: 0x%04x (%s)\n", frame.EtherType, protocols.EtherTypeName(frame.EtherType))
 		fmt.Printf("Payload: %s\n", formatPayload(frame.Payload))
 

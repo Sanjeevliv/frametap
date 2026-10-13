@@ -9,7 +9,7 @@ func TestFormatMac(t *testing.T) {
 		0x00, 0x11, 0xaa, 0xbb, 0xcc, 0xff,
 	}
 
-	got := formatMAC(mac)
+	got := FormatMAC(mac)
 	expected := "00:11:aa:bb:cc:ff"
 
 	if got != expected {

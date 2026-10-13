@@ -6,7 +6,7 @@ type IPv4Packet struct {
 	// TODO: Milestone 6 IPv4 decoding implementation
 }
 
-func formatIPv4(ip [4]byte) string {
+func FormatIPv4(ip [4]byte) string {
 	return fmt.Sprintf(
 		"%d.%d.%d.%d",
 		ip[0],

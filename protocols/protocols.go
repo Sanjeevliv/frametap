@@ -43,7 +43,7 @@ func Dispatch(etherType uint16, payload []byte) error {
 	}
 }
 
-func formatMAC(mac [6]byte) string {
+func FormatMAC(mac [6]byte) string {
 	return fmt.Sprintf(
 		"%02x:%02x:%02x:%02x:%02x:%02x",
 		mac[0],

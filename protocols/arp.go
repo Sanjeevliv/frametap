@@ -83,8 +83,8 @@ func arpOperationName(operation uint16) string {
 
 func printARP(arp ARPPacket) {
 	fmt.Printf("ARP %s\n", arpOperationName(arp.Operation))
-	fmt.Printf("  Sender MAC: %s\n", formatMAC(arp.SenderMAC))
-	fmt.Printf("  Sender IP:  %s\n", formatIPv4(arp.SenderIP))
-	fmt.Printf("  Target MAC: %s\n", formatMAC(arp.TargetMAC))
-	fmt.Printf("  Target IP:  %s\n", formatIPv4(arp.TargetIP))
+	fmt.Printf("  Sender MAC: %s\n", FormatMAC(arp.SenderMAC))
+	fmt.Printf("  Sender IP:  %s\n", FormatIPv4(arp.SenderIP))
+	fmt.Printf("  Target MAC: %s\n", FormatMAC(arp.TargetMAC))
+	fmt.Printf("  Target IP:  %s\n", FormatIPv4(arp.TargetIP))
 }
