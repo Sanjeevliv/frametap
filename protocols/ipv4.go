@@ -1,6 +1,9 @@
 package protocols
 
-import "fmt"
+import (
+	"encoding/binary"
+	"fmt"
+)
 
 type IPv4Packet struct {
 	Version        byte
@@ -37,25 +40,26 @@ func ParseIPv4(data []byte) (IPv4Packet, error) {
 	}
 
 	versionIHL := data[0]
+
 	ip.Version = versionIHL >> 4
 	ihl := versionIHL & 0x0f
-	headerLength := int(ihl) * 4
 
-	// IP version
 	if ip.Version != 4 {
 		return ip, fmt.Errorf("invalid IPv4 version: %d", ip.Version)
 	}
 
-	// Header Length
+	headerLength := uint8(ihl) * 4
 	if headerLength < 20 {
 		return ip, fmt.Errorf("invalid IPv4 header length: %d bytes", headerLength)
 	}
 
-	if len(data) < headerLength {
+	if len(data) < int(headerLength) {
 		return ip, fmt.Errorf("IPv4 header: got %d bytes, need %d", len(data), headerLength)
 	}
 
-	// Total Length Field
+	ip.HeaderLength = headerLength
+	ip.TotalLength = binary.BigEndian.Uint16(data[2:4])
+
 	if ip.TotalLength < uint16(headerLength) {
 		return ip, fmt.Errorf("invalid IPv4 total length: %d", ip.TotalLength)
 	}
@@ -63,6 +67,22 @@ func ParseIPv4(data []byte) (IPv4Packet, error) {
 	if int(ip.TotalLength) > len(data) {
 		return ip, fmt.Errorf("truncated IPv4 packet: total length %d, got %d bytes", ip.TotalLength, len(data))
 	}
+
+	ip.Identification = binary.BigEndian.Uint16(data[4:6])
+
+	flagsAndOffset := binary.BigEndian.Uint16(data[6:8])
+
+	ip.Flags = byte(flagsAndOffset >> 13)
+	ip.FragmentOffset = flagsAndOffset & 0x1fff
+
+	ip.TTL = data[8]
+	ip.Protocol = data[9]
+	ip.HeaderChecksum = binary.BigEndian.Uint16(data[10:12])
+
+	copy(ip.Source[:], data[12:16])
+	copy(ip.Destination[:], data[16:20])
+
+	ip.Payload = data[headerLength:int(ip.TotalLength)]
 
 	return ip, nil
 
