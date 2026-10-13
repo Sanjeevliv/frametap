@@ -1,15 +1,56 @@
 package protocols
 
-import "fmt"
+import (
+	"encoding/binary"
+	"fmt"
+)
 
 type IPv6Packet struct {
-	// TODO: Milestone 6 IPv6 decoding implementation
+	Version      byte
+	TrafficClass byte
+	FlowLabel    uint32
+
+	PayloadLength uint16
+	NextHeader    byte
+	HopLimit      byte
+
+	Source      [16]byte
+	Destination [16]byte
+
+	Payload []byte
 }
 
 func ParseIPv6(data []byte) (IPv6Packet, error) {
+	var ip IPv6Packet
+
 	if len(data) < 40 {
 		return IPv6Packet{}, fmt.Errorf("IPv6 header too short (minimum 40 bytes), got %d", len(data))
 	}
-	// Stub implementation until Milestone 6 IPv6 fields are wired up
-	return IPv6Packet{}, nil
+
+	firstWord := binary.BigEndian.Uint32(data[0:4])
+
+	ip.Version = byte(firstWord >> 28)
+	ip.TrafficClass = byte((firstWord >> 20) & 0x0ff)
+	ip.FlowLabel = firstWord & 0x000ffff
+
+	if ip.Version != 6 {
+		return ip, fmt.Errorf("invalid IPv6 version: %d", ip.Version)
+	}
+
+	ip.PayloadLength = binary.BigEndian.Uint16(data[4:6])
+	ip.NextHeader = data[6]
+	ip.HopLimit = data[7]
+
+	packetLength := 40 + int(ip.PayloadLength)
+
+	if packetLength > len(data) {
+		return ip, fmt.Errorf("truncated IPv6 packet: need %d bytes, got %d", packetLength, len(data))
+	}
+
+	copy(ip.Source[:], data[8:24])
+	copy(ip.Destination[:], data[24:40])
+
+	ip.Payload = data[40:packetLength]
+
+	return ip, nil
 }
