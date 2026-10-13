@@ -22,15 +22,15 @@ type IPv4Packet struct {
 	Payload []byte
 }
 
-// func FormatIPv4(ip [4]byte) string {
-// 	return fmt.Sprintf(
-// 		"%d.%d.%d.%d",
-// 		ip[0],
-// 		ip[1],
-// 		ip[2],
-// 		ip[3],
-// 	)
-// }
+func FormatIPv4(ip [4]byte) string {
+	return fmt.Sprintf(
+		"%d.%d.%d.%d",
+		ip[0],
+		ip[1],
+		ip[2],
+		ip[3],
+	)
+}
 
 func ParseIPv4(data []byte) (IPv4Packet, error) {
 	var ip IPv4Packet
