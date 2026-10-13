@@ -85,5 +85,17 @@ func ParseIPv4(data []byte) (IPv4Packet, error) {
 	ip.Payload = data[headerLength:int(ip.TotalLength)]
 
 	return ip, nil
+}
 
+func ipv4ProtocolName(protocol byte) string {
+	switch protocol {
+	case 1:
+		return "ICMP"
+	case 6:
+		return "TCP"
+	case 17:
+		return "UDP"
+	default:
+		return fmt.Sprintf("Unknown (%d)", protocol)
+	}
 }
