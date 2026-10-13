@@ -5,6 +5,8 @@ import (
 	"fmt"
 )
 
+const arpHeaderLength = 28
+
 type ARPPacket struct {
 	HardwareType   uint16
 	ProtocolType   uint16
@@ -22,8 +24,8 @@ type ARPPacket struct {
 func ParseARP(data []byte) (ARPPacket, error) {
 	var arp ARPPacket
 
-	if len(data) < 28 {
-		return arp, fmt.Errorf("ARP too short (minimum 28 bytes), got %d", len(data))
+	if len(data) < arpHeaderLength {
+		return arp, fmt.Errorf("ARP too short (minimum %d bytes), got %d", arpHeaderLength, len(data))
 	}
 
 	arp.HardwareType = binary.BigEndian.Uint16(data[0:2])
