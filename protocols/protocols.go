@@ -30,17 +30,28 @@ func EtherTypeName(etherType uint16) string {
 func Dispatch(etherType uint16, payload []byte) error {
 	switch etherType {
 	case EtherTypeIPv4:
-		_, err := ParseIPv4(payload)
-		return err
+		ip, err := ParseIPv4(payload)
+		if err != nil {
+			return err
+		}
+		printIPv4(ip)
+
 	case EtherTypeARP:
-		_, err := ParseARP(payload)
-		return err
+		arp, err := ParseARP(payload)
+		if err != nil {
+			return err
+		}
+		printARP(arp)
 	case EtherTypeIPv6:
-		_, err := ParseIPv6(payload)
-		return err
+		ip, err := ParseIPv6(payload)
+		if err != nil {
+			return err
+		}
+		printIPv6(ip)
 	default:
-		return nil
+		fmt.Printf("Unknown EtherType: 0x%04x\n", etherType)
 	}
+	return nil
 }
 
 func FormatMAC(mac [6]byte) string {

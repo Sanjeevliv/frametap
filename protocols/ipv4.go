@@ -99,3 +99,16 @@ func ipv4ProtocolName(protocol byte) string {
 		return fmt.Sprintf("Unknown (%d)", protocol)
 	}
 }
+
+func printIPv4(ip IPv4Packet) {
+	fmt.Println("IPv4")
+
+	fmt.Printf("-Version: %d\n", ip.Version)
+	fmt.Printf("-Header Length: %d bytes\n", ip.HeaderLength)
+	fmt.Printf("-Total Length: %d bytes\n", ip.TotalLength)
+	fmt.Printf("-Source: %s\n", FormatIPv4(ip.Source))
+	fmt.Printf("-Destination: %s\n", FormatIPv4(ip.Destination))
+	fmt.Printf("-Protocol: %s\n", ipv4ProtocolName(ip.Protocol))
+	fmt.Printf("-TTL: %d\n", ip.TTL)
+	fmt.Printf("-Payload: %d bytes\n", len(ip.Payload))
+}
