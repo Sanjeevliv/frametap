@@ -54,3 +54,24 @@ func ParseIPv6(data []byte) (IPv6Packet, error) {
 
 	return ip, nil
 }
+
+func ipv6NextHeaderNames(nextHeader byte) string {
+	switch nextHeader {
+	case 6:
+		return "TCP"
+	case 17:
+		return "UDP"
+	case 58:
+		return "ICMPv6"
+	case 0:
+		return "Hop-by-hop Options"
+	case 43:
+		return "Routing"
+	case 44:
+		return "Fragment"
+	case 60:
+		return "Destination Options"
+	default:
+		return fmt.Sprintf("Unknown(%d)", nextHeader)
+	}
+}
