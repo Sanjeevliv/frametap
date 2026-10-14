@@ -76,25 +76,25 @@ func ipv6NextHeaderNames(nextHeader byte) string {
 	}
 }
 
-func FormatIPv6(ip [16]byte) string {
-	return fmt.Sprintf(
-		"[IP_ADDRESS]",
-		ip[0], ip[1], ip[2], ip[3],
-		ip[4], ip[5], ip[6], ip[7],
-		ip[8], ip[9], ip[10], ip[11],
-		ip[12], ip[13], ip[14], ip[15],
-	)
-}
+// func FormatIPv6(ip [16]byte) string {
+// 	return fmt.Sprintf(
+// 		"%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
+// 		ip[0], ip[1], ip[2], ip[3],
+// 		ip[4], ip[5], ip[6], ip[7],
+// 		ip[8], ip[9], ip[10], ip[11],
+// 		ip[12], ip[13], ip[14], ip[15],
+// 	)
+// }
 
-func printIPv6(ip IPv6Packet) {
-	fmt.Println("IPv6")
-	fmt.Printf("-Version: %d\n", ip.Version)
-	fmt.Printf("-Traffic Class: %d\n", ip.TrafficClass)
-	fmt.Printf("-Flow Label: %d\n", ip.FlowLabel)
-	fmt.Printf("Payload Length: %d\n", ip.PayloadLength)
-	fmt.Printf("-Source: %s\n", FormatIPv6(ip.Source))
-	fmt.Printf("-Destination: %s\n", FormatIPv6(ip.Destination))
-	fmt.Printf("-Next Header: %s\n", ipv6NextHeaderNames(ip.NextHeader))
-	fmt.Printf("-Hop Limit: %d\n", ip.HopLimit)
-	fmt.Printf("-Payload: %d bytes\n", ip.Payload)
-}
+// func printIPv6(ip IPv6Packet) {
+// 	fmt.Println("IPv6")
+// 	fmt.Printf("-Version: %d\n", ip.Version)
+// 	fmt.Printf("-Traffic Class: %d\n", ip.TrafficClass)
+// 	fmt.Printf("-Flow Label: %d\n", ip.FlowLabel)
+// 	fmt.Printf("Payload Length: %d\n", ip.PayloadLength)
+// 	fmt.Printf("-Source: %s\n", FormatIPv6(ip.Source))
+// 	fmt.Printf("-Destination: %s\n", FormatIPv6(ip.Destination))
+// 	fmt.Printf("-Next Header: %s\n", ipv6NextHeaderNames(ip.NextHeader))
+// 	fmt.Printf("-Hop Limit: %d\n", ip.HopLimit)
+// 	fmt.Printf("-Payload: %d bytes\n", ip.Payload)
+// }
