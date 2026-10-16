@@ -81,3 +81,17 @@ func ipv6NextHeaderNames(nextHeader byte) string {
 		return fmt.Sprintf("Unknown(%d)", nextHeader)
 	}
 }
+
+func printIPv6(ip IPv6Packet) {
+	fmt.Println("IPv6")
+	fmt.Printf("-Version: %d\n", ip.Version)
+	fmt.Printf("-Traffic Class: %d\n", ip.TrafficClass)
+	fmt.Printf("-Flow Label: %d\n", ip.FlowLabel)
+	fmt.Printf("-Payload Length: %d\n", ip.PayloadLength)
+	fmt.Printf("-Source: %s\n", FormatIPv6(ip.Source))
+	fmt.Printf("-Destination: %s\n", FormatIPv6(ip.Destination))
+	fmt.Printf("-Next Header: %s\n", ipv6NextHeaderNames(ip.NextHeader))
+	fmt.Printf("-Hop Limit: %d\n", ip.HopLimit)
+	fmt.Printf("-Payload: %d bytes\n", len(ip.Payload))
+}
+
