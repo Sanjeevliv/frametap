@@ -61,3 +61,19 @@ func TestParseIPv6TooShort(t *testing.T) {
 		t.Error("Expected error for short packet, got nil")
 	}
 }
+
+func TestParseIPv6TruncatedPayload(t *testing.T) {
+	data := make([]byte, 40)
+
+	data[0] = 0x60
+
+	// Claims 10 bytes of payload.
+	data[4] = 0x00
+	data[5] = 0x0a
+
+	_, err := ParseIPv6(data)
+
+	if err == nil {
+		t.Fatal("expected error for truncated IPv6 payload")
+	}
+}
