@@ -32,7 +32,7 @@ func ParseIPv6(data []byte) (IPv6Packet, error) {
 
 	ip.Version = byte(firstWord >> 28)
 	ip.TrafficClass = byte((firstWord >> 20) & 0x0ff)
-	ip.FlowLabel = firstWord & 0x000ffff
+	ip.FlowLabel = firstWord & 0x000fffff
 
 	if ip.Version != 6 {
 		return ip, fmt.Errorf("invalid IPv6 version: %d", ip.Version)
@@ -94,4 +94,3 @@ func printIPv6(ip IPv6Packet) {
 	fmt.Printf("-Hop Limit: %d\n", ip.HopLimit)
 	fmt.Printf("-Payload: %d bytes\n", len(ip.Payload))
 }
-
