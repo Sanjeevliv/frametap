@@ -9,14 +9,14 @@ import (
 const TcpMinHeaderLength = 20
 
 const (
-	TCPFlagFIN uint = 1 << 0
-	TCPFlagSYN uint = 1 << 1
-	TCPFlagRST uint = 1 << 2
-	TCPFlagPSH uint = 1 << 3
-	TCPFlagACK uint = 1 << 4
-	TCPFlagURG uint = 1 << 5
-	TCPFlagECE uint = 1 << 6
-	TCPFlagCWR uint = 1 << 7
+	TCPFlagFIN uint8 = 1 << 0
+	TCPFlagSYN uint8 = 1 << 1
+	TCPFlagRST uint8 = 1 << 2
+	TCPFlagPSH uint8 = 1 << 3
+	TCPFlagACK uint8 = 1 << 4
+	TCPFlagURG uint8 = 1 << 5
+	TCPFlagECE uint8 = 1 << 6
+	TCPFlagCWR uint8 = 1 << 7
 )
 
 type TCPSegment struct {
@@ -24,7 +24,7 @@ type TCPSegment struct {
 	DestinationPort uint16
 	SequenceNumber  uint32
 	AckNumber       uint32
-	DataOffSet      uint8
+	DataOffset      uint8
 	HeaderLength    uint8
 	Flags           uint8
 	WindowSize      uint16
@@ -45,10 +45,10 @@ func ParseTCP(data []byte) (TCPSegment, error) {
 	tcp.SequenceNumber = binary.BigEndian.Uint32(data[4:8])
 	tcp.AckNumber = binary.BigEndian.Uint32(data[8:12])
 
-	tcp.DataOffSet = data[12] >> 4
-	headerLength := tcp.DataOffSet * 4
+	tcp.DataOffset = data[12] >> 4
+	headerLength := tcp.DataOffset * 4
 	if headerLength < TcpMinHeaderLength {
-		return tcp, fmt.Errorf("invalid TCP data offset: %d, %d bytes", tcp.DataOffSet, headerLength)
+		return tcp, fmt.Errorf("invalid TCP data offset: %d, %d bytes", tcp.DataOffset, headerLength)
 	}
 
 	if len(data) < int(headerLength) {
