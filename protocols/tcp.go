@@ -97,3 +97,16 @@ func FormatTCPFlags(flags uint8) string {
 	}
 	return strings.Join(active, " ")
 }
+
+func printTCP(tcp TCPSegment) {
+	fmt.Println("  TCP")
+	fmt.Printf("  -Source Port:      %d\n", tcp.SourcePort)
+	fmt.Printf("  -Destination Port: %d\n", tcp.DestinationPort)
+	fmt.Printf("  -Sequence Number:  %d\n", tcp.SequenceNumber)
+	fmt.Printf("  -Ack Number:       %d\n", tcp.AckNumber)
+	fmt.Printf("  -Header Length:    %d bytes (Data Offset: %d)\n", tcp.HeaderLength, tcp.DataOffset)
+	fmt.Printf("  -Flags:            0x%02x [%s]\n", tcp.Flags, FormatTCPFlags(tcp.Flags))
+	fmt.Printf("  -Window Size:      %d\n", tcp.WindowSize)
+	fmt.Printf("  -Checksum:         0x%04x\n", tcp.Checksum)
+	fmt.Printf("  -Payload:          %d bytes\n", len(tcp.Payload))
+}
