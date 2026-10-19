@@ -3,9 +3,21 @@ package protocols
 import (
 	"encoding/binary"
 	"fmt"
+	"strings"
 )
 
 const TcpMinHeaderLength = 20
+
+const (
+	TCPFlagFIN uint = 1 << 0
+	TCPFlagSYN uint = 1 << 1
+	TCPFlagRST uint = 1 << 2
+	TCPFlagPSH uint = 1 << 3
+	TCPFlagACK uint = 1 << 4
+	TCPFlagURG uint = 1 << 5
+	TCPFlagECE uint = 1 << 6
+	TCPFlagCWR uint = 1 << 7
+)
 
 type TCPSegment struct {
 	SourcePort      uint16
@@ -44,6 +56,44 @@ func ParseTCP(data []byte) (TCPSegment, error) {
 	}
 
 	tcp.HeaderLength = headerLength
+	tcp.Flags = data[13]
+	tcp.WindowSize = binary.BigEndian.Uint16(data[14:16])
+	tcp.Checksum = binary.BigEndian.Uint16(data[16:18])
+	tcp.UrgentPointer = binary.BigEndian.Uint16(data[18:20])
+	tcp.Payload = data[headerLength:]
 
 	return tcp, nil
+}
+
+func FormatTCPFlags(flags uint8) string {
+	var active []string
+
+	if flags&TCPFlagFIN != 0 {
+		active = append(active, "FIN")
+	}
+	if flags&TCPFlagSYN != 0 {
+		active = append(active, "SYN")
+	}
+	if flags&TCPFlagRST != 0 {
+		active = append(active, "RST")
+	}
+	if flags&TCPFlagPSH != 0 {
+		active = append(active, "PSH")
+	}
+	if flags&TCPFlagACK != 0 {
+		active = append(active, "ACK")
+	}
+	if flags&TCPFlagURG != 0 {
+		active = append(active, "URG")
+	}
+	if flags&TCPFlagECE != 0 {
+		active = append(active, "ECE")
+	}
+	if flags&TCPFlagCWR != 0 {
+		active = append(active, "CWR")
+	}
+	if len(active) == 0 {
+		return "None"
+	}
+	return strings.Join(active, " ")
 }
