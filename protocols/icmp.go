@@ -87,3 +87,29 @@ func ICMPv6TypeName(t uint8) string {
 		return fmt.Sprintf("Unknown Type: %d", t)
 	}
 }
+
+func printICMP(icmp ICMPPacket) {
+	fmt.Println("  ICMP")
+	fmt.Printf("  -Type:         %d (%s)\n", icmp.Type, ICMPTypeName(icmp.Type))
+	fmt.Printf("  -Code:         %d\n", icmp.Code)
+	fmt.Printf("  -Checksum:     0x%04x\n", icmp.Checksum)
+	if icmp.Type == 0 || icmp.Type == 8 {
+		id := binary.BigEndian.Uint16(icmp.RestOfHeader[0:2])
+		seq := binary.BigEndian.Uint16(icmp.RestOfHeader[2:4])
+		fmt.Printf("  -Echo ID: %d, Seq: %d\n", id, seq)
+	}
+	fmt.Printf("  -Payload:      %d bytes\n", len(icmp.Payload))
+}
+
+func printICMPv6(icmp ICMPPacket) {
+	fmt.Println("  ICMPv6")
+	fmt.Printf("  -Type:         %d (%s)\n", icmp.Type, ICMPv6TypeName(icmp.Type))
+	fmt.Printf("  -Code:         %d\n", icmp.Code)
+	fmt.Printf("  -Checksum:     0x%04x\n", icmp.Checksum)
+	if icmp.Type == 128 || icmp.Type == 129 || icmp.Type == 133 || icmp.Type == 134 {
+		id := binary.BigEndian.Uint16(icmp.RestOfHeader[0:2])
+		seq := binary.BigEndian.Uint16(icmp.RestOfHeader[2:4])
+		fmt.Printf("  -Echo ID: %d, Seq: %d\n", id, seq)
+	}
+	fmt.Printf("  -Payload:      %d bytes\n", len(icmp.Payload))
+}
