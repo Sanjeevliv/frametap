@@ -40,3 +40,12 @@ func ParseUDP(data []byte) (UDPDatagram, error) {
 
 	return udp, nil
 }
+
+func printUDP(udp UDPDatagram) {
+	fmt.Println("  UDP")
+	fmt.Printf("  -Source Port:      %d\n", udp.SourcePort)
+	fmt.Printf("  -Destination Port: %d\n", udp.DestinationPort)
+	fmt.Printf("  -Length:           %d bytes\n", udp.Length)
+	fmt.Printf("  -Checksum:         0x%04x\n", udp.Checksum)
+	fmt.Printf("  -Payload:          %d bytes\n", len(udp.Payload))
+}
