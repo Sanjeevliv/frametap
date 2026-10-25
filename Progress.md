@@ -122,20 +122,20 @@ M10 ⬜  Advanced AF_PACKET (Zero-Copy & Scaling)
 
 **Goal**: `Ethernet Payload → Network Layer Packets`
 
-- [ ] EtherType dispatch table (ARP `0x0806`, IPv4 `0x0800`, IPv6 `0x86DD`)
-- [ ] ARP packet structure and field decoding
-- [ ] IPv4 header structure, IP addresses, IHL, and header boundaries
-- [ ] IPv6 header basics and next-header chaining
-- [ ] Transport protocol extraction from IP header (TCP `6`, UDP `17`, ICMP `1`)
-- [ ] Nested parser architecture
+- [X] EtherType dispatch table (ARP `0x0806`, IPv4 `0x0800`, IPv6 `0x86DD`)
+- [X] ARP packet structure and field decoding
+- [X] IPv4 header structure, IP addresses, IHL, and header boundaries
+- [X] IPv6 header basics and next-header chaining
+- [X] Transport protocol extraction from IP header (TCP `6`, UDP `17`, ICMP `1`)
+- [X] Nested parser architecture
 
 ### Milestone 7 — Protocol Decoding: TCP / UDP / ICMP ⬜
 
 **Goal**: `Network Layer Payload → Transport Layer Summaries`
 
-- [ ] TCP header parsing (source/destination ports, sequence/ack numbers, flags)
-- [ ] UDP header parsing (ports, length, checksum)
-- [ ] ICMP packet decoding (Echo Request, Echo Reply)
+- [X] TCP header parsing (source/destination ports, sequence/ack numbers, flags)
+- [X] UDP header parsing (ports, length, checksum)
+- [X] ICMP packet decoding (Echo Request, Echo Reply)
 - [ ] Produce end-to-end traffic summaries (e.g. `10.0.0.1:443 → 10.0.0.2:52134 TCP [SYN]`)
 
 ### Milestone 8 — Go Systems & Performance Engineering ⬜
