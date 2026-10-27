@@ -45,20 +45,20 @@ func DispatchEthernet(etherType uint16, payload []byte) error {
 	case EtherTypeIPv4:
 		ip, err := ParseIPv4(payload)
 		if err != nil {
-			return err
+			return fmt.Errorf("ParseIPv4 failed: %w", err)
 		}
 		printIPv4(ip)
 
 	case EtherTypeARP:
 		arp, err := ParseARP(payload)
 		if err != nil {
-			return err
+			return fmt.Errorf("ParseARP failed: %w", err)
 		}
 		printARP(arp)
 	case EtherTypeIPv6:
 		ip, err := ParseIPv6(payload)
 		if err != nil {
-			return err
+			return fmt.Errorf("ParseIPv6 failed: %w", err)
 		}
 		printIPv6(ip)
 	default:
@@ -82,49 +82,75 @@ func DispatchIPv4(ip IPv4Packet) error {
 	case ProtoTCP:
 		tcp, err := ParseTCP(ip.Payload)
 		if err != nil {
-			return err
+			return fmt.Errorf("TCP parse failed: %w", err)
 		}
 		printTCP(tcp)
 		fmt.Printf("Summary: [IPv6/TCP] [%s]:%d -> [%s]:%d Flags=[%s] Seq=%d Ack=%d Win=%d Len=%d\n",
-			src,
-			tcp.SourcePort,
-			dst,
-			tcp.DestinationPort,
-			FormatTCPFlags(tcp.Flags),
-			tcp.SequenceNumber,
-			tcp.AckNumber,
-			tcp.WindowSize,
-			len(tcp.Payload),
-		)
+			src, tcp.SourcePort, dst, tcp.DestinationPort,
+			FormatTCPFlags(tcp.Flags), tcp.SequenceNumber, tcp.AckNumber,
+			tcp.WindowSize, len(tcp.Payload))
 	case ProtoUDP:
 		udp, err := ParseUDP(ip.Payload)
 		if err != nil {
-			return err
+			return fmt.Errorf("UDP parse failed: %w", err)
 		}
 		printUDP(udp)
 		fmt.Printf("Summary: [IPv4/UDP] %s:%d -> %s:%d Len=%d\n",
-			src,
-			udp.SourcePort,
-			dst,
-			udp.DestinationPort,
-			len(udp.Payload),
-		)
-		return nil
+			src, udp.SourcePort, dst, udp.DestinationPort,
+			len(udp.Payload))
 	case ProtoICMP:
 		icmp, err := ParseICMP(ip.Payload)
 		if err != nil {
-			return err
+			return fmt.Errorf("ICMP parse failed: %w", err)
 		}
 		printICMP(icmp)
 		fmt.Printf("Summary: [IPv4/ICMP] %s -> %s Type=%d (%s) Code=%d\n",
-			src,
-			dst,
-			icmp.Type,
-			ICMPTypeName(icmp.Type),
-			icmp.Code,
-		)
+			src, dst, icmp.Type, ICMPTypeName(icmp.Type), icmp.Code)
 	default:
 		fmt.Printf("Unsupported IPv4 transport protocol: %d\n", ip.Protocol)
+	}
+	return nil
+}
+
+func DispatchIPv6(ip IPv6Packet) error {
+	src := FormatIPv6(ip.Source)
+	dst := FormatIPv6(ip.Destination)
+
+	switch ip.NextHeader {
+	case ProtoTCP:
+		tcp, err := ParseTCP(ip.Payload)
+		if err != nil {
+			return fmt.Errorf("TCP parse failed: %w", err)
+		}
+		printTCP(tcp)
+		fmt.Printf("Summary: [IPv6/TCP] [%s]:%d -> [%s]:%d Flags=[%s] Seq=%d Ack=%d Win=%d Len=%d\n",
+			src, tcp.SourcePort, dst, tcp.DestinationPort,
+			FormatTCPFlags(tcp.Flags), tcp.SequenceNumber, tcp.AckNumber,
+			tcp.WindowSize, len(tcp.Payload))
+	case ProtoUDP:
+		udp, err := ParseUDP(ip.Payload)
+		if err != nil {
+			return fmt.Errorf("UDP parse failed: %w", err)
+		}
+		printUDP(udp)
+		fmt.Printf("Summary: [IPv6/UDP] %s:%d -> %s:%d Len=%d\n",
+			src, udp.SourcePort, dst, udp.DestinationPort,
+			len(udp.Payload))
+	case ProtoICMPv6:
+		icmp, err := ParseICMP(ip.Payload)
+		if err != nil {
+			return fmt.Errorf("ICMP parse failed: %w", err)
+		}
+		printICMP(icmp)
+		fmt.Printf("Summary: [IPv6/ICMP] %s -> %s Type=%d (%s) Code=%d\n",
+			src, dst, icmp.Type, ICMPTypeName(icmp.Type), icmp.Code)
+
+	case ExtHeaderHopByHop, ExtHeaderRouting, ExtHeaderFragment, ExtHeaderDestOpt:
+		fmt.Printf("IPv6 Extension Header (%s) present; payload is the next header\n",
+			ipv6NextHeaderNames(ip.NextHeader))
+
+	default:
+		fmt.Printf("unsupported IPv6 NextHeader: %d\n", ip.NextHeader)
 	}
 	return nil
 }
