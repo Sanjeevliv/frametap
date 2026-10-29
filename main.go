@@ -80,7 +80,7 @@ func main() {
 			log.Fatalf("Recvfrom %v", err)
 		}
 
-		fmt.Printf("\nPacket received: %d bytes", n)
+		fmt.Printf("\nPacket received: %d bytes\n", n)
 
 		/* sll.Pkttype indicates the packet's direction and destination classification:
 		   0 = PACKET_HOST      (addressed to our local MAC)
@@ -119,8 +119,8 @@ func main() {
 		fmt.Printf("EtherType: 0x%04x (%s)\n", frame.EtherType, protocols.EtherTypeName(frame.EtherType))
 		fmt.Printf("Payload: %s\n", formatPayload(frame.Payload))
 
-		if err := protocols.Dispatch(frame.EtherType, frame.Payload); err != nil {
-			log.Printf("protocols.Dispatch: %v", err)
+		if err := protocols.DispatchEthernet(frame.EtherType, frame.Payload); err != nil {
+			log.Printf("protocols.DispatchEthernet: %v", err)
 		}
 
 	}

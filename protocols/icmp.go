@@ -76,9 +76,9 @@ func ICMPv6TypeName(t uint8) string {
 	case 129:
 		return "Echo Reply"
 	case 133:
-		return "Echo Request"
+		return "Router Solicitation"
 	case 134:
-		return "Echo Reply"
+		return "Router Advertisement"
 	case 135:
 		return "Neighbor Solicitation"
 	case 136:
@@ -106,7 +106,7 @@ func printICMPv6(icmp ICMPPacket) {
 	fmt.Printf("  -Type:         %d (%s)\n", icmp.Type, ICMPv6TypeName(icmp.Type))
 	fmt.Printf("  -Code:         %d\n", icmp.Code)
 	fmt.Printf("  -Checksum:     0x%04x\n", icmp.Checksum)
-	if icmp.Type == 128 || icmp.Type == 129 || icmp.Type == 133 || icmp.Type == 134 {
+	if icmp.Type == 128 || icmp.Type == 129 {
 		id := binary.BigEndian.Uint16(icmp.RestOfHeader[0:2])
 		seq := binary.BigEndian.Uint16(icmp.RestOfHeader[2:4])
 		fmt.Printf("  -Echo ID: %d, Seq: %d\n", id, seq)

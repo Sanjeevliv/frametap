@@ -48,6 +48,7 @@ func DispatchEthernet(etherType uint16, payload []byte) error {
 			return fmt.Errorf("ParseIPv4 failed: %w", err)
 		}
 		printIPv4(ip)
+		return DispatchIPv4(ip)
 
 	case EtherTypeARP:
 		arp, err := ParseARP(payload)
@@ -61,6 +62,7 @@ func DispatchEthernet(etherType uint16, payload []byte) error {
 			return fmt.Errorf("ParseIPv6 failed: %w", err)
 		}
 		printIPv6(ip)
+		return DispatchIPv6(ip)
 	default:
 		fmt.Printf("Unknown EtherType: 0x%04x\n", etherType)
 	}
@@ -73,6 +75,7 @@ func DispatchIPv4(ip IPv4Packet) error {
 	if ip.FragmentOffset != 0 {
 		fmt.Printf(" [IPv4 non-initial Fragment (offset=%d bytes); skipping transport header parse]\n",
 			int(ip.FragmentOffset)*8)
+		return nil
 	}
 
 	src := FormatIPv4(ip.Source)
@@ -85,7 +88,7 @@ func DispatchIPv4(ip IPv4Packet) error {
 			return fmt.Errorf("TCP parse failed: %w", err)
 		}
 		printTCP(tcp)
-		fmt.Printf("Summary: [IPv6/TCP] [%s]:%d -> [%s]:%d Flags=[%s] Seq=%d Ack=%d Win=%d Len=%d\n",
+		fmt.Printf("Summary: [IPv4/TCP] %s:%d -> %s:%d Flags=[%s] Seq=%d Ack=%d Win=%d Len=%d\n",
 			src, tcp.SourcePort, dst, tcp.DestinationPort,
 			FormatTCPFlags(tcp.Flags), tcp.SequenceNumber, tcp.AckNumber,
 			tcp.WindowSize, len(tcp.Payload))
@@ -137,13 +140,13 @@ func DispatchIPv6(ip IPv6Packet) error {
 			src, udp.SourcePort, dst, udp.DestinationPort,
 			len(udp.Payload))
 	case ProtoICMPv6:
-		icmp, err := ParseICMP(ip.Payload)
+		icmp, err := ParseICMPv6(ip.Payload)
 		if err != nil {
-			return fmt.Errorf("ICMP parse failed: %w", err)
+			return fmt.Errorf("ICMPv6 parse failed: %w", err)
 		}
-		printICMP(icmp)
-		fmt.Printf("Summary: [IPv6/ICMP] %s -> %s Type=%d (%s) Code=%d\n",
-			src, dst, icmp.Type, ICMPTypeName(icmp.Type), icmp.Code)
+		printICMPv6(icmp)
+		fmt.Printf("Summary: [IPv6/ICMPv6] %s -> %s Type=%d (%s) Code=%d\n",
+			src, dst, icmp.Type, ICMPv6TypeName(icmp.Type), icmp.Code)
 
 	case ExtHeaderHopByHop, ExtHeaderRouting, ExtHeaderFragment, ExtHeaderDestOpt:
 		fmt.Printf("IPv6 Extension Header (%s) present; payload is the next header\n",
