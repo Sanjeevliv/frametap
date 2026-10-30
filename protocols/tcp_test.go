@@ -58,8 +58,8 @@ func TestParseTCPMinimalAndWithOptions(t *testing.T) {
 	if tcp2.HeaderLength != 24 {
 		t.Errorf("expected HeaderLength 24, got %d", tcp2.HeaderLength)
 	}
-	if FormatTCPFlags(tcp2.Flags) != "SYN,ACK" {
-		t.Errorf("expected flags SYN,ACK, got %s", FormatTCPFlags(tcp2.Flags))
+	if FormatTCPFlags(tcp2.Flags) != "SYN ACK" {
+		t.Errorf("expected flags SYN ACK, got %s", FormatTCPFlags(tcp2.Flags))
 	}
 	if string(tcp2.Payload) != "HTTP" {
 		t.Errorf("expected payload 'HTTP' (excluding 4-byte TCP option), got %q", string(tcp2.Payload))
