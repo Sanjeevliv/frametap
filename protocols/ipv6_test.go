@@ -5,8 +5,11 @@ import "testing"
 func TestParseIPv6(t *testing.T) {
 	data := make([]byte, 40)
 
-	// Version = 6
+	// Version = 6, TrafficClass = 0x00, FlowLabel = 0xabcde
 	data[0] = 0x60
+	data[1] = 0x0a
+	data[2] = 0xbc
+	data[3] = 0xde
 
 	// Payload Length = 0
 	data[4] = 0x00
@@ -41,6 +44,10 @@ func TestParseIPv6(t *testing.T) {
 		t.Errorf("Expected Version 6, got %d", ip.Version)
 	}
 
+	if ip.FlowLabel != 0xabcde {
+		t.Errorf("Expected full 20-bit FlowLabel 0xabcde, got 0x%x", ip.FlowLabel)
+	}
+
 	if ip.NextHeader != 6 {
 		t.Errorf("Expected NextHeader 6 (TCP), got %d", ip.NextHeader)
 	}
@@ -59,6 +66,15 @@ func TestParseIPv6TooShort(t *testing.T) {
 	_, err := ParseIPv6(data)
 	if err == nil {
 		t.Error("Expected error for short packet, got nil")
+	}
+}
+
+func TestParseIPv6WrongVersion(t *testing.T) {
+	data := make([]byte, 40)
+	data[0] = 0x40 // Version 4 in an IPv6 frame
+
+	if _, err := ParseIPv6(data); err == nil {
+		t.Fatal("expected error for invalid IPv6 version 4")
 	}
 }
 

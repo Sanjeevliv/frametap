@@ -24,6 +24,10 @@ func TestParseARP(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if arp.Operation != 1 {
+		t.Fatalf("Expected Operation 1, got %d", arp.Operation)
+	}
+
 	if FormatIPv4(arp.SenderIP) != "192.168.1.10" {
 		t.Fatalf("Expected SenderIP: %s", FormatIPv4(arp.SenderIP))
 	}
@@ -39,5 +43,16 @@ func TestParseARPTooShort(t *testing.T) {
 	_, err := ParseARP(data)
 	if err == nil {
 		t.Fatalf("Expected an error for short ARP packet")
+	}
+}
+
+func TestParseARPUnsupportedHardwareType(t *testing.T) {
+	badHW := make([]byte, 28)
+	badHW[0], badHW[1] = 0x00, 0x06 // Hardware Type 6 instead of 1 (Ethernet)
+	badHW[2], badHW[3] = 0x08, 0x00
+	badHW[4], badHW[5] = 6, 4
+
+	if _, err := ParseARP(badHW); err == nil {
+		t.Fatal("Expected an error for unsupported ARP hardware type, got nil")
 	}
 }

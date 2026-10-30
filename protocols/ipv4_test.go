@@ -92,3 +92,48 @@ func TestParseIPv4TruncatedTotalLength(t *testing.T) {
 		t.Fatal("expected error for truncated IPv4 packet")
 	}
 }
+
+func TestParseIPv4PaddingStrip(t *testing.T) {
+	raw := []byte{
+		0x45,       // Version 4, IHL 5 (20 bytes)
+		0x00,       // DSCP/ECN
+		0x00, 0x18, // Total Length: 24 bytes (20 header + 4 payload)
+		0x12, 0x34, // Identification
+		0x40, 0x00, // Flags: DF, Fragment Offset: 0
+		0x40,       // TTL: 64
+		0x06,       // Protocol: TCP (6)
+		0xab, 0xcd, // Header Checksum
+		10, 0, 0, 1,
+		10, 0, 0, 2,
+		0xde, 0xad, 0xbe, 0xef, // 4 bytes of actual IPv4 payload
+		0x00, 0x00, 0x00, 0x00, // 4 bytes of Ethernet trailer padding (must be excluded)
+	}
+
+	ip, err := ParseIPv4(raw)
+	if err != nil {
+		t.Fatalf("expected valid IPv4 packet, got error: %v", err)
+	}
+	if len(ip.Payload) != 4 {
+		t.Fatalf("expected 4-byte IPv4 payload (Ethernet padding stripped), got %d bytes", len(ip.Payload))
+	}
+}
+
+func TestParseIPv4TruncatedOptions(t *testing.T) {
+	data := make([]byte, 24)
+	data[0] = 0x48 // Version 4, IHL 8 (32 bytes), but only 24 bytes captured
+	data[2], data[3] = 0x00, 32
+
+	if _, err := ParseIPv4(data); err == nil {
+		t.Fatal("expected error when IPv4 header length exceeds captured bytes")
+	}
+}
+
+func TestParseIPv4TotalLengthSmallerThanHeader(t *testing.T) {
+	data := make([]byte, 20)
+	data[0] = 0x45 // HeaderLength = 20
+	data[2], data[3] = 0x00, 16 // TotalLength = 16 (< 20)
+
+	if _, err := ParseIPv4(data); err == nil {
+		t.Fatal("expected error when IPv4 TotalLength < HeaderLength")
+	}
+}
