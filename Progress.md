@@ -98,7 +98,6 @@ M15 ⬜  Advanced In-Kernel eBPF Flow Engine & Telemetry (Extras)
 > **Important distinction:**
 > `unknown EtherType ≠ malformed Ethernet frame`
 > *(An unknown EtherType is a structurally valid Ethernet frame whose inner payload protocol is unrecognized).*
-
 > **Important memory concept:**
 > `EthernetFrame.Payload` points directly into the reusable capture `buffer`. Slicing is zero-copy; retaining frames across iterations requires copying.
 
