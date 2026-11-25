@@ -33,7 +33,7 @@ func ParseUDP(data []byte) (UDPDatagram, error) {
 	}
 
 	if int(udp.Length) > len(data) {
-		return udp, fmt.Errorf("UDP")
+		return udp, fmt.Errorf("truncated UDP datagram: length %d exceeds %d bytes", udp.Length, len(data))
 	}
 
 	udp.Payload = data[udpHeaderLength:udp.Length]

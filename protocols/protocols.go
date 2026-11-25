@@ -136,7 +136,7 @@ func DispatchIPv6(ip IPv6Packet) error {
 			return fmt.Errorf("UDP parse failed: %w", err)
 		}
 		printUDP(udp)
-		fmt.Printf("Summary: [IPv6/UDP] %s:%d -> %s:%d Len=%d\n",
+		fmt.Printf("Summary: [IPv6/UDP] [%s]:%d -> [%s]:%d Len=%d\n",
 			src, udp.SourcePort, dst, udp.DestinationPort,
 			len(udp.Payload))
 	case ProtoICMPv6:

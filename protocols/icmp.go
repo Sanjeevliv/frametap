@@ -33,7 +33,7 @@ func ParseICMP(data []byte) (ICMPPacket, error) {
 func ParseICMPv6(data []byte) (ICMPPacket, error) {
 	var icmp ICMPPacket
 	if len(data) < icmpMinHeaderLength {
-		return icmp, fmt.Errorf("ICMP header too short (minimum %d bytes), got %d", icmpMinHeaderLength, len(data))
+		return icmp, fmt.Errorf("ICMPv6 header too short (minimum %d bytes), got %d", icmpMinHeaderLength, len(data))
 	}
 
 	icmp.Type = data[0]
